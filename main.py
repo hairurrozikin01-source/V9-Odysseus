@@ -47,8 +47,8 @@ def run_v9():
         print("Tidak melakukan transaksi.")
 
     except Exception as e:
-    print("ERROR:", repr(e))
-    raise
+        print("ERROR:", repr(e))
+        raise
 
 if __name__ == "__main__":
     run_v9()
