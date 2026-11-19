@@ -92,11 +92,13 @@ def analyze_coin(symbol):
 
     if confirmed:
         status = "RADAR AWAL TERKONFIRMASI"
-    elif score >= 40:
+    elif (
+        (vol_now >= 1.2 or trades_now >= 1.1)
+        and change_now > 0
+    ):
         status = "PANTAU"
     else:
         status = "BELUM ADA SINYAL"
-
     return {
         "symbol": symbol,
         "price": close_now,
