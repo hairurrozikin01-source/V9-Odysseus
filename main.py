@@ -1,109 +1,138 @@
 
 import json
 import urllib.request
+import urllib.parse
+import time
 from datetime import datetime, timezone
-from urllib.parse import urlencode
 
-BASE = "https://data-api.binance.vision"
+BASE_URL = "https://data-api.binance.vision/api/v3/klines"
 
-MEME_COINS = [
-    "DOGEUSDT", "SHIBUSDT", "PEPEUSDT",
-    "BONKUSDT", "FLOKIUSDT", "WIFUSDT",
-    "BOMEUSDT", "MEMEUSDT", "TURBOUSDT",
-    "NEIROUSDT", "1000SATSUSDT", "1000RATSUSDT",
-    "DOGSUSDT", "ACTUSDT", "BRETTUSDT",
-    "MOGUSDT"
+# Daftar meme coin Binance Spot untuk pemantauan awal
+COINS = [
+    "DOGEUSDT",
+    "PEPEUSDT",
+    "BONKUSDT",
+    "SHIBUSDT",
+    "FLOKIUSDT",
+    "WIFUSDT",
+    "BOMEUSDT",
+    "MEMEUSDT",
+    "TURBOUSDT",
+    "NEIROUSDT",
+    "1000SATSUSDT",
+    "ACTUSDT"
 ]
 
-def get_json(url):
-    req = urllib.request.Request(
-        url,
-        headers={"User-Agent": "V9-Odysseus/3.0"}
-    )
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.loads(r.read().decode())
-
-def scan_coin(symbol):
-    params = urlencode({
+def get_candles(symbol):
+    params = urllib.parse.urlencode({
         "symbol": symbol,
         "interval": "1h",
-        "limit": 168
+        "limit": 30
     })
 
-    candles = get_json(BASE + "/api/v3/klines?" + params)
+    req = urllib.request.Request(
+        BASE_URL + "?" + params,
+        headers={"User-Agent": "V9-Odysseus/4.0"}
+    )
 
-    if len(candles) < 168:
+    with urllib.request.urlopen(req, timeout=20) as response:
+        return json.loads(response.read().decode())
+
+def analyze_coin(symbol):
+    candles = get_candles(symbol)
+
+    if len(candles) < 27:
         return None
 
-    volumes = [float(c[7]) for c in candles]
+    # Abaikan candle yang masih berjalan
+    last = candles[-2]
+    previous = candles[-26:-2]
 
-    recent_24h = sum(volumes[-24:])
-    previous_daily_avg = sum(volumes[-168:-24]) / 6
+    last_volume = float(last[7])
+    last_trades = int(last[8])
 
-    ratio = (
-        recent_24h / previous_daily_avg
-        if previous_daily_avg > 0 else 0
-    )
+    avg_volume = sum(float(c[7]) for c in previous) / 24
+    avg_trades = sum(int(c[8]) for c in previous) / 24
 
-    ticker = get_json(
-        BASE + "/api/v3/ticker/24hr?" +
-        urlencode({"symbol": symbol})
-    )
+    if avg_volume <= 0 or avg_trades <= 0:
+        return None
 
-    change = float(ticker["priceChangePercent"])
+    volume_ratio = last_volume / avg_volume
+    trade_ratio = last_trades / avg_trades
 
-    if ratio >= 2 and change > 0 and change <= 15:
+    open_price = float(last[1])
+    close_price = float(last[4])
+
+    price_change = ((close_price / open_price) - 1) * 100
+
+    score = 0
+
+    if volume_ratio >= 1.5:
+        score += 40
+    if trade_ratio >= 1.3:
+        score += 30
+    if price_change >= 0.2:
+        score += 15
+    if price_change <= 5:
+        score += 15
+
+    if volume_ratio >= 1.5 and trade_ratio >= 1.3:
+        status = "RADAR AWAL"
+    elif volume_ratio >= 1.2 or trade_ratio >= 1.2:
         status = "PANTAU"
-    elif ratio >= 1.3:
-        status = "TUNGGU"
     else:
-        status = "HINDARI"
+        status = "BELUM ADA SINYAL"
 
     return {
         "symbol": symbol,
-        "change": change,
-        "volume": recent_24h,
-        "average": previous_daily_avg,
-        "ratio": ratio,
+        "price": close_price,
+        "change": price_change,
+        "volume_ratio": volume_ratio,
+        "trade_ratio": trade_ratio,
+        "score": score,
         "status": status
     }
 
 def run_v9():
-    print("=== V9 VOLUME INTELLIGENCE V3 ===")
-    print("Waktu UTC:", datetime.now(timezone.utc))
+    print("=== V9 ODYSSEUS EARLY PUMP V4 ===")
+    print("Waktu UTC:", datetime.now(timezone.utc).isoformat())
+    print("Mode: READ ONLY")
+    print("Timeframe: 1H")
+    print("Pembanding: Rata-rata 24 candle sebelumnya")
 
     results = []
 
-    for symbol in MEME_COINS:
+    for symbol in COINS:
         try:
-            result = scan_coin(symbol)
-
+            result = analyze_coin(symbol)
             if result:
                 results.append(result)
-                print(
-                    symbol,
-                    "| Perubahan:", round(result["change"], 2), "%",
-                    "| Volume 24h:", round(result["volume"]),
-                    "| Rata-rata 6 hari:", round(result["average"]),
-                    "| Rasio volume:", round(result["ratio"], 2), "x",
-                    "| Status:", result["status"]
-                )
+        except Exception as error:
+            print(symbol, "ERROR:", str(error))
 
-        except Exception as e:
-            print("GAGAL", symbol, repr(e))
+        time.sleep(0.2)
 
-    results.sort(key=lambda x: x["ratio"], reverse=True)
+    results.sort(key=lambda x: x["score"], reverse=True)
 
-    print("\n=== RANKING VOLUME ===")
-    for i, coin in enumerate(results[:10], 1):
-        print(i, coin["symbol"], coin["ratio"], "x", coin["status"])
+    print("\n=== HASIL PEMINDAIAN ===")
 
-    print("\nJumlah berhasil dipindai:", len(results))
-    print("MODE: READ ONLY")
-    print("Tidak melakukan transaksi.")
+    for coin in results:
+        print(
+            coin["symbol"],
+            "| Harga:", coin["price"],
+            "| Perubahan 1H:", round(coin["change"], 2), "%",
+            "| Rasio volume:", round(coin["volume_ratio"], 2), "x",
+            "| Rasio transaksi:", round(coin["trade_ratio"], 2), "x",
+            "| Skor:", coin["score"],
+            "| Status:", coin["status"]
+        )
+
+    print("\n=== SELESAI ===")
+    print("Tidak ada transaksi otomatis.")
 
 if __name__ == "__main__":
     run_v9()
+    
                              
         
     
