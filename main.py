@@ -3,9 +3,7 @@ import json
 import urllib.request
 from datetime import datetime, timezone
 
-
 API = "https://data-api.binance.vision/api/v3/ticker/24hr"
-
 
 def get_market_data():
     req = urllib.request.Request(
@@ -16,40 +14,61 @@ def get_market_data():
         return json.loads(response.read().decode())
 
 def run_v9():
-    print("=== V9 ODYSSEUS ENGINE ===")
+    print("=== V9 ODYSSEUS CRYPTO SCANNER ===")
     print("Waktu UTC:", datetime.now(timezone.utc))
 
-    try:
-        data = get_market_data()
+    data = get_market_data()
 
-        coins = [
-            c for c in data
-            if c["symbol"].endswith("USDT")
-            and float(c["quoteVolume"]) >= 100000
-        ]
+    excluded = ("UPUSDT", "DOWNUSDT", "BULLUSDT", "BEARUSDT")
 
-        coins.sort(
-            key=lambda c: float(c["quoteVolume"]),
-            reverse=True
+    coins = [
+        c for c in data
+        if c["symbol"].endswith("USDT")
+        and not c["symbol"].endswith(excluded)
+        and float(c["quoteVolume"]) >= 1000000
+    ]
+
+    coins.sort(
+        key=lambda c: float(c["quoteVolume"]),
+        reverse=True
+    )
+
+    print("\n=== KANDIDAT BINANCE SPOT ===")
+
+    count = 0
+
+    for c in coins:
+        change = float(c["priceChangePercent"])
+        volume = float(c["quoteVolume"])
+
+        if change >= 2 and change <= 15 and volume >= 5000000:
+            status = "PANTAU"
+        elif change > 0 and change <= 15:
+            status = "TUNGGU"
+        else:
+            status = "HINDARI"
+
+        print(
+            c["symbol"],
+            "| Harga:", c["lastPrice"],
+            "| Perubahan:", round(change, 2), "%",
+            "| Volume USDT:", round(volume),
+            "| Status:", status
         )
 
-        print("\nTOP 10 KOIN BINANCE SPOT")
+        count += 1
+        if count >= 20:
+            break
 
-        for c in coins[:10]:
-            print(
-                c["symbol"],
-                "Perubahan:", c["priceChangePercent"], "%",
-                "Volume:", c["quoteVolume"], "USDT"
-            )
+    print("\nTotal pasangan memenuhi filter:", len(coins))
+    print("MODE: READ ONLY")
+    print("Tidak melakukan transaksi.")
 
-        print("\nSTATUS: MONITORING BERHASIL")
-        print("Mode: READ ONLY")
-        print("Tidak melakukan transaksi.")
-
+if __name__ == "__main__":
+    try:
+        run_v9()
     except Exception as e:
         print("ERROR:", repr(e))
         raise
-
-if __name__ == "__main__":
-    run_v9()
+    
       
