@@ -7,20 +7,11 @@ from datetime import datetime, timezone
 
 BASE_URL = "https://data-api.binance.vision/api/v3/klines"
 
-# Daftar meme coin Binance Spot untuk pemantauan awal
 COINS = [
-    "DOGEUSDT",
-    "PEPEUSDT",
-    "BONKUSDT",
-    "SHIBUSDT",
-    "FLOKIUSDT",
-    "WIFUSDT",
-    "BOMEUSDT",
-    "MEMEUSDT",
-    "TURBOUSDT",
-    "NEIROUSDT",
-    "1000SATSUSDT",
-    "ACTUSDT"
+    "DOGEUSDT", "PEPEUSDT", "BONKUSDT",
+    "SHIBUSDT", "FLOKIUSDT", "WIFUSDT",
+    "BOMEUSDT", "MEMEUSDT", "TURBOUSDT",
+    "NEIROUSDT", "1000SATSUSDT", "ACTUSDT"
 ]
 
 def get_candles(symbol):
@@ -32,7 +23,7 @@ def get_candles(symbol):
 
     req = urllib.request.Request(
         BASE_URL + "?" + params,
-        headers={"User-Agent": "V9-Odysseus/4.0"}
+        headers={"User-Agent": "V9-Odysseus/4.1"}
     )
 
     with urllib.request.urlopen(req, timeout=20) as response:
@@ -41,64 +32,88 @@ def get_candles(symbol):
 def analyze_coin(symbol):
     candles = get_candles(symbol)
 
-    if len(candles) < 27:
+    if len(candles) < 28:
         return None
 
-    # Abaikan candle yang masih berjalan
-    last = candles[-2]
-    previous = candles[-26:-2]
+    # Dua candle terakhir yang sudah selesai
+    current = candles[-2]
+    previous = candles[-3]
 
-    last_volume = float(last[7])
-    last_trades = int(last[8])
+    # 24 candle sebelum dua candle tersebut
+    baseline = candles[-27:-3]
 
-    avg_volume = sum(float(c[7]) for c in previous) / 24
-    avg_trades = sum(int(c[8]) for c in previous) / 24
+    avg_volume = sum(float(c[7]) for c in baseline) / 24
+    avg_trades = sum(int(c[8]) for c in baseline) / 24
 
     if avg_volume <= 0 or avg_trades <= 0:
         return None
 
-    volume_ratio = last_volume / avg_volume
-    trade_ratio = last_trades / avg_trades
+    vol_now = float(current[7]) / avg_volume
+    vol_previous = float(previous[7]) / avg_volume
 
-    open_price = float(last[1])
-    close_price = float(last[4])
+    trades_now = int(current[8]) / avg_trades
+    trades_previous = int(previous[8]) / avg_trades
 
-    price_change = ((close_price / open_price) - 1) * 100
+    open_now = float(current[1])
+    close_now = float(current[4])
+    close_previous = float(previous[4])
+
+    change_now = (close_now / open_now - 1) * 100
+    change_previous = (
+        close_now / close_previous - 1
+    ) * 100
 
     score = 0
 
-    if volume_ratio >= 1.5:
-        score += 40
-    if trade_ratio >= 1.3:
+    if vol_now >= 1.5:
         score += 30
-    if price_change >= 0.2:
-        score += 15
-    if price_change <= 5:
+    elif vol_now >= 1.2:
         score += 15
 
-    if volume_ratio >= 1.5 and trade_ratio >= 1.3:
-        status = "RADAR AWAL"
-    elif volume_ratio >= 1.2 or trade_ratio >= 1.2:
+    if trades_now >= 1.3:
+        score += 30
+    elif trades_now >= 1.1:
+        score += 15
+
+    if change_now > 0:
+        score += 20
+
+    if change_previous > 0:
+        score += 20
+
+    confirmed = (
+        vol_now >= 1.5
+        and vol_previous >= 1.2
+        and trades_now >= 1.3
+        and trades_previous >= 1.1
+        and change_now > 0
+        and change_previous > 0
+    )
+
+    if confirmed:
+        status = "RADAR AWAL TERKONFIRMASI"
+    elif score >= 40:
         status = "PANTAU"
     else:
         status = "BELUM ADA SINYAL"
 
     return {
         "symbol": symbol,
-        "price": close_price,
-        "change": price_change,
-        "volume_ratio": volume_ratio,
-        "trade_ratio": trade_ratio,
+        "price": close_now,
+        "change": change_now,
+        "volume": vol_now,
+        "previous_volume": vol_previous,
+        "trades": trades_now,
+        "previous_trades": trades_previous,
         "score": score,
         "status": status
     }
 
 def run_v9():
-    print("=== V9 ODYSSEUS EARLY PUMP V4 ===")
-    print("Waktu UTC:", datetime.now(timezone.utc).isoformat())
+    print("=== V9 ODYSSEUS SMART CONFIRMATION V4.1 ===")
+    print("UTC:", datetime.now(timezone.utc).isoformat())
     print("Mode: READ ONLY")
-    print("Timeframe: 1H")
-    print("Pembanding: Rata-rata 24 candle sebelumnya")
+    print("Konfirmasi: Dua candle 1H")
 
     results = []
 
@@ -112,7 +127,10 @@ def run_v9():
 
         time.sleep(0.2)
 
-    results.sort(key=lambda x: x["score"], reverse=True)
+    results.sort(
+        key=lambda x: x["score"],
+        reverse=True
+    )
 
     print("\n=== HASIL PEMINDAIAN ===")
 
@@ -120,14 +138,18 @@ def run_v9():
         print(
             coin["symbol"],
             "| Harga:", coin["price"],
-            "| Perubahan 1H:", round(coin["change"], 2), "%",
-            "| Rasio volume:", round(coin["volume_ratio"], 2), "x",
-            "| Rasio transaksi:", round(coin["trade_ratio"], 2), "x",
+            "| Perubahan:", round(coin["change"], 2), "%",
+            "| Volume:", round(coin["volume"], 2), "x",
+            "| Volume sebelumnya:",
+            round(coin["previous_volume"], 2), "x",
+            "| Transaksi:", round(coin["trades"], 2), "x",
+            "| Transaksi sebelumnya:",
+            round(coin["previous_trades"], 2), "x",
             "| Skor:", coin["score"],
             "| Status:", coin["status"]
         )
 
-    print("\n=== SELESAI ===")
+    print("\n=== PEMINDAIAN SELESAI ===")
     print("Tidak ada transaksi otomatis.")
 
 if __name__ == "__main__":
