@@ -5,62 +5,71 @@ from datetime import datetime, timezone
 
 API = "https://data-api.binance.vision/api/v3/ticker/24hr"
 
-def get_market_data():
+MEME_COINS = {
+    "DOGEUSDT", "SHIBUSDT", "PEPEUSDT",
+    "BONKUSDT", "FLOKIUSDT", "WIFUSDT",
+    "BOMEUSDT", "MEMEUSDT", "TURBOUSDT",
+    "NEIROUSDT", "1000SATSUSDT", "1000RATSUSDT",
+    "PONKEUSDT", "DOGSUSDT", "ACTUSDT",
+    "BRETTUSDT", "MOGUSDT"
+}
+
+def get_data():
     req = urllib.request.Request(
         API,
         headers={"User-Agent": "V9-Odysseus/1.0"}
     )
-    with urllib.request.urlopen(req, timeout=30) as response:
-        return json.loads(response.read().decode())
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return json.loads(r.read().decode())
 
 def run_v9():
-    print("=== V9 ODYSSEUS CRYPTO SCANNER ===")
+    print("=== V9 MEME COIN SCANNER V2 ===")
     print("Waktu UTC:", datetime.now(timezone.utc))
 
-    data = get_market_data()
+    data = get_data()
+    found = []
 
-    excluded = ("UPUSDT", "DOWNUSDT", "BULLUSDT", "BEARUSDT")
+    for coin in data:
+        symbol = coin["symbol"]
 
-    coins = [
-        c for c in data
-        if c["symbol"].endswith("USDT")
-        and not c["symbol"].endswith(excluded)
-        and float(c["quoteVolume"]) >= 1000000
-    ]
+        if symbol not in MEME_COINS:
+            continue
 
-    coins.sort(
-        key=lambda c: float(c["quoteVolume"]),
-        reverse=True
-    )
+        price_change = float(coin["priceChangePercent"])
+        volume = float(coin["quoteVolume"])
 
-    print("\n=== KANDIDAT BINANCE SPOT ===")
-
-    count = 0
-
-    for c in coins:
-        change = float(c["priceChangePercent"])
-        volume = float(c["quoteVolume"])
-
-        if change >= 2 and change <= 15 and volume >= 5000000:
+        if volume < 1000000:
+            status = "HINDARI - VOLUME RENDAH"
+        elif 2 <= price_change <= 15:
             status = "PANTAU"
-        elif change > 0 and change <= 15:
-            status = "TUNGGU"
+        elif price_change > 15:
+            status = "WASPADA - SUDAH NAIK"
         else:
-            status = "HINDARI"
+            status = "TUNGGU"
 
+        found.append({
+            "symbol": symbol,
+            "change": price_change,
+            "volume": volume,
+            "price": coin["lastPrice"],
+            "status": status
+        })
+
+    found.sort(key=lambda x: x["volume"], reverse=True)
+
+    if not found:
+        print("Belum ada pasangan meme coin yang ditemukan.")
+
+    for coin in found:
         print(
-            c["symbol"],
-            "| Harga:", c["lastPrice"],
-            "| Perubahan:", round(change, 2), "%",
-            "| Volume USDT:", round(volume),
-            "| Status:", status
+            coin["symbol"],
+            "| Harga:", coin["price"],
+            "| Perubahan:", round(coin["change"], 2), "%",
+            "| Volume USDT:", round(coin["volume"]),
+            "| Status:", coin["status"]
         )
 
-        count += 1
-        if count >= 20:
-            break
-
-    print("\nTotal pasangan memenuhi filter:", len(coins))
+    print("\nJumlah meme coin ditemukan:", len(found))
     print("MODE: READ ONLY")
     print("Tidak melakukan transaksi.")
 
@@ -70,5 +79,6 @@ if __name__ == "__main__":
     except Exception as e:
         print("ERROR:", repr(e))
         raise
+        
     
       
