@@ -58,10 +58,13 @@ def analyze_coin(symbol):
     close_now = float(current[4])
     close_previous = float(previous[4])
 
-    change_now = (close_now / open_now - 1) * 100
-    change_previous = (
-        close_now / close_previous - 1
-    ) * 100
+change_now = (close_now / open_now - 1) * 100
+
+open_previous = float(previous[1])
+change_previous = (
+    close_previous / open_previous - 1
+) * 100
+    
 
     
     score = 0
