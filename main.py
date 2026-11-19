@@ -63,23 +63,30 @@ def analyze_coin(symbol):
         close_now / close_previous - 1
     ) * 100
 
+    
     score = 0
 
     if vol_now >= 1.5:
-        score += 30
+        score += 25
     elif vol_now >= 1.2:
         score += 15
 
+    if vol_previous >= 1.2:
+        score += 15
+
     if trades_now >= 1.3:
-        score += 30
+        score += 25
     elif trades_now >= 1.1:
         score += 15
 
+    if trades_previous >= 1.1:
+        score += 15
+
     if change_now > 0:
-        score += 20
+        score += 10
 
     if change_previous > 0:
-        score += 20
+        score += 10
 
     confirmed = (
         vol_now >= 1.5
@@ -92,13 +99,16 @@ def analyze_coin(symbol):
 
     if confirmed:
         status = "RADAR AWAL TERKONFIRMASI"
-    elif (
-        (vol_now >= 1.2 or trades_now >= 1.1)
-        and change_now > 0
-    ):
-        status = "PANTAU"
     else:
-        status = "BELUM ADA SINYAL"
+        score = min(score, 79)
+
+        if (
+            (vol_now >= 1.2 or trades_now >= 1.1)
+            and change_now > 0
+        ):
+            status = "PANTAU"
+        else:
+            status = "BELUM ADA SINYAL"
     return {
         "symbol": symbol,
         "price": close_now,
