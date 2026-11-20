@@ -7,14 +7,13 @@ import urllib.error
 from datetime import datetime, timezone
 
 # ==========================================
-# V9 ODYSSEUS SMART CONFIRMATION V4.3
+# V9 ODYSSEUS SMART CONFIRMATION V4.4
 # ==========================================
 
-VERSION = "V4.3"
+VERSION = "V4.4"
 INTERVAL = "1h"
-CANDLE_LIMIT = 30
+CANDLE_LIMIT = 100
 MIN_AVG_VOLUME = 10000
-
 BREAKOUT_LOOKBACK = 20
 
 COINS = [
@@ -40,8 +39,9 @@ API_URLS = [
     "https://api2.binance.com/api/v3/klines"
 ]
 
+
 # ==========================================
-# WAKTU CANDLE
+# WAKTU
 # ==========================================
 
 def format_time(timestamp):
@@ -73,7 +73,7 @@ def get_candles(symbol):
             request = urllib.request.Request(
                 url,
                 headers={
-                    "User-Agent": "V9-Odysseus/4.3",
+                    "User-Agent": "V9-Odysseus/4.4",
                     "Accept": "application/json"
                 }
             )
@@ -88,21 +88,15 @@ def get_candles(symbol):
                 )
 
                 if not isinstance(data, list):
-                    raise ValueError(
-                        "Format data tidak valid"
-                    )
+                    raise ValueError("Format data tidak valid")
 
-                if len(data) < 27:
-                    raise ValueError(
-                        "Data candle kurang"
-                    )
+                if len(data) < 40:
+                    raise ValueError("Data candle kurang")
 
                 return data
 
         except urllib.error.HTTPError as error:
-            errors.append(
-                "HTTP " + str(error.code)
-            )
+            errors.append("HTTP " + str(error.code))
 
         except Exception as error:
             errors.append(str(error)[:80])
@@ -129,7 +123,196 @@ def average(values):
 
 
 # ==========================================
-# V4.3 BREAKOUT DETECTOR
+# EMA ENGINE
+# ==========================================
+
+def calculate_ema(values, period):
+
+    if len(values) < period:
+        return []
+
+    multiplier = 2 / (period + 1)
+
+    ema = sum(values[:period]) / period
+    result = [ema]
+
+    for value in values[period:]:
+
+        ema = (
+            value * multiplier
+            + ema * (1 - multiplier)
+        )
+
+        result.append(ema)
+
+    return result
+
+
+# ==========================================
+# RSI 14
+# ==========================================
+
+def calculate_rsi(closes, period=14):
+
+    if len(closes) < period + 1:
+        return None
+
+    changes = [
+        closes[i] - closes[i - 1]
+        for i in range(1, len(closes))
+    ]
+
+    gains = [
+        max(change, 0)
+        for change in changes
+    ]
+
+    losses = [
+        max(-change, 0)
+        for change in changes
+    ]
+
+    avg_gain = average(gains[:period])
+    avg_loss = average(losses[:period])
+
+    for i in range(period, len(gains)):
+
+        avg_gain = (
+            avg_gain * (period - 1)
+            + gains[i]
+        ) / period
+
+        avg_loss = (
+            avg_loss * (period - 1)
+            + losses[i]
+        ) / period
+
+    if avg_loss == 0:
+        return 100.0
+
+    rs = avg_gain / avg_loss
+
+    return 100 - (100 / (1 + rs))
+
+
+# ==========================================
+# MACD 12 / 26 / 9
+# ==========================================
+
+def calculate_macd(closes):
+
+    if len(closes) < 35:
+        return None
+
+    ema12 = calculate_ema(closes, 12)
+    ema26 = calculate_ema(closes, 26)
+
+    if not ema12 or not ema26:
+        return None
+
+    macd_line = [
+        fast - slow
+        for fast, slow in zip(
+            ema12[-len(ema26):],
+            ema26
+        )
+    ]
+
+    signal_line = calculate_ema(macd_line, 9)
+
+    if len(signal_line) < 2:
+        return None
+
+    histogram = [
+        macd_line[-len(signal_line) + i]
+        - signal_line[i]
+        for i in range(len(signal_line))
+    ]
+
+    return {
+        "macd": macd_line[-1],
+        "signal": signal_line[-1],
+        "histogram": histogram[-1],
+        "previous_histogram": histogram[-2],
+        "bullish": macd_line[-1] > signal_line[-1],
+        "histogram_rising": histogram[-1] > histogram[-2]
+    }
+
+
+# ==========================================
+# V4.4 MOMENTUM ENGINE
+# ==========================================
+
+def calculate_momentum(candles):
+
+    closed = candles[:-1]
+
+    closes = [
+        float(c[4])
+        for c in closed
+    ]
+
+    if len(closes) < 35:
+        return None
+
+    rsi = calculate_rsi(closes, 14)
+    macd = calculate_macd(closes)
+
+    if rsi is None or macd is None:
+        return None
+
+    # Perubahan harga 3 candle
+    recent_roc = (
+        closes[-1] / closes[-4] - 1
+    ) * 100
+
+    previous_roc = (
+        closes[-4] / closes[-7] - 1
+    ) * 100
+
+    acceleration = recent_roc - previous_roc
+
+    # Skor momentum 0-30
+    momentum_score = 0
+
+    if 50 < rsi < 70:
+        momentum_score += 10
+
+    elif rsi >= 70:
+        momentum_score += 5
+
+    if macd["bullish"]:
+        momentum_score += 10
+
+    if macd["histogram_rising"]:
+        momentum_score += 5
+
+    if acceleration > 0:
+        momentum_score += 5
+
+    momentum_bullish = (
+        rsi > 50
+        and rsi < 70
+        and macd["bullish"]
+        and macd["histogram_rising"]
+        and acceleration > 0
+    )
+
+    return {
+        "rsi": rsi,
+        "macd": macd["macd"],
+        "macd_signal": macd["signal"],
+        "macd_histogram": macd["histogram"],
+        "macd_bullish": macd["bullish"],
+        "histogram_rising": macd["histogram_rising"],
+        "momentum_acceleration": acceleration,
+        "momentum_score": momentum_score,
+        "momentum_bullish": momentum_bullish
+    }
+
+
+# ==========================================
+# BREAKOUT DETECTOR V4.3
 # ==========================================
 
 def detect_breakout(candles, lookback=20):
@@ -137,16 +320,12 @@ def detect_breakout(candles, lookback=20):
     if len(candles) < lookback + 2:
         return None
 
-    # Candle terakhir masih berjalan
-    current = candles[-2]
+    closed = candles[:-1]
 
-    # 20 candle selesai sebelum candle terbaru
-    previous = candles[-(lookback + 2):-2]
+    current = closed[-1]
 
-    if len(previous) < lookback:
-        return None
+    previous = closed[-(lookback + 1):-1]
 
-    # Resistance tertinggi
     resistance = max(
         float(c[2]) for c in previous
     )
@@ -178,11 +357,10 @@ def analyze_coin(symbol):
     if not candles:
         return None
 
-    # Abaikan candle yang masih berjalan
     current = candles[-2]
     previous = candles[-3]
 
-    # V4.3 BREAKOUT ANALYSIS
+    # BREAKOUT
     breakout_data = detect_breakout(
         candles,
         BREAKOUT_LOOKBACK
@@ -191,7 +369,13 @@ def analyze_coin(symbol):
     if breakout_data is None:
         return None
 
-    # 24 candle pembanding
+    # MOMENTUM
+    momentum = calculate_momentum(candles)
+
+    if momentum is None:
+        return None
+
+    # BASELINE 24 CANDLE
     baseline_now = candles[-26:-2]
     baseline_previous = candles[-27:-3]
 
@@ -219,33 +403,15 @@ def analyze_coin(symbol):
     ):
         return None
 
-    # Volume dalam USDT
     volume_now = float(current[7])
     volume_previous = float(previous[7])
 
-    # Filter aktivitas minimum
-    if avg_volume_now < MIN_AVG_VOLUME:
-        return {
-            "symbol": symbol,
-            "status": "HINDARI - VOLUME RENDAH",
-            "score": 0,
-            "price": float(current[4]),
-            "change": 0,
-            "volume_ratio": 0,
-            "trade_ratio": 0,
-            "breakout": breakout_data["breakout"],
-            "resistance": breakout_data["resistance"],
-            "breakout_distance": breakout_data["distance_pct"]
-        }
-
-    # Rasio volume
     vol_now = volume_now / avg_volume_now
 
     vol_previous = (
         volume_previous / avg_volume_previous
     )
 
-    # Rasio jumlah transaksi
     trades_now = (
         int(current[8]) / avg_trades_now
     )
@@ -254,7 +420,6 @@ def analyze_coin(symbol):
         int(previous[8]) / avg_trades_previous
     )
 
-    # Harga
     open_now = float(current[1])
     close_now = float(current[4])
 
@@ -264,7 +429,6 @@ def analyze_coin(symbol):
     if open_now <= 0 or open_previous <= 0:
         return None
 
-    # Perubahan harga dua candle
     change_now = (
         close_now / open_now - 1
     ) * 100
@@ -274,47 +438,54 @@ def analyze_coin(symbol):
     ) * 100
 
     # ======================================
-    # SISTEM SKOR V4.2 (0-100)
+    # SKOR DASAR V4.2
     # ======================================
 
-    score = 0
+    base_score = 0
 
-    # Volume candle terbaru
     if vol_now >= 1.5:
-        score += 25
+        base_score += 25
+
     elif vol_now >= 1.2:
-        score += 15
+        base_score += 15
 
-    # Volume candle sebelumnya
     if vol_previous >= 1.2:
-        score += 15
+        base_score += 15
 
-    # Jumlah transaksi terbaru
     if trades_now >= 1.3:
-        score += 20
+        base_score += 20
+
     elif trades_now >= 1.1:
-        score += 10
+        base_score += 10
 
-    # Jumlah transaksi sebelumnya
     if trades_previous >= 1.1:
-        score += 10
+        base_score += 10
 
-    # Arah harga
     if change_now > 0:
-        score += 10
+        base_score += 10
 
     if change_previous > 0:
-        score += 10
+        base_score += 10
 
-    # Harga penutupan meningkat
     if close_now > close_previous:
-        score += 10
+        base_score += 10
+
+    # ======================================
+    # SKOR GABUNGAN V4.4
+    # ======================================
+
+    score = round(
+        base_score * 0.70
+        + momentum["momentum_score"]
+    )
+
+    score = min(100, score)
 
     # ======================================
     # KONFIRMASI DUA CANDLE
     # ======================================
 
-    confirmed = (
+    candle_confirmed = (
         vol_now >= 1.5
         and vol_previous >= 1.2
         and trades_now >= 1.3
@@ -324,17 +495,31 @@ def analyze_coin(symbol):
         and close_now > close_previous
     )
 
-    if confirmed:
+    # ======================================
+    # STATUS
+    # ======================================
+
+    if avg_volume_now < MIN_AVG_VOLUME:
+
+        status = "HINDARI - VOLUME RENDAH"
+
+    elif (
+        candle_confirmed
+        and momentum["momentum_bullish"]
+    ):
+
         status = "RADAR AWAL TERKONFIRMASI"
 
     elif score >= 40 and change_now > 0:
+
         status = "PANTAU"
 
     else:
+
         status = "BELUM ADA SINYAL"
 
     # ======================================
-    # HASIL ANALISIS
+    # HASIL
     # ======================================
 
     return {
@@ -342,24 +527,40 @@ def analyze_coin(symbol):
         "price": close_now,
         "change": change_now,
         "previous_change": change_previous,
+
         "volume_ratio": vol_now,
         "previous_volume_ratio": vol_previous,
+
         "trade_ratio": trades_now,
         "previous_trade_ratio": trades_previous,
-        "avg_hourly_volume": avg_volume_now,
+
+        "base_score": base_score,
         "score": score,
         "status": status,
+
         "candle_time": format_time(current[0]),
 
-        # V4.3 BREAKOUT DATA
+        # BREAKOUT
         "breakout": breakout_data["breakout"],
         "resistance": breakout_data["resistance"],
-        "breakout_distance": breakout_data["distance_pct"]
+        "breakout_distance": breakout_data["distance_pct"],
+
+        # MOMENTUM
+        "rsi": momentum["rsi"],
+        "macd": momentum["macd"],
+        "macd_signal": momentum["macd_signal"],
+        "macd_histogram": momentum["macd_histogram"],
+        "macd_bullish": momentum["macd_bullish"],
+        "histogram_rising": momentum["histogram_rising"],
+
+        "momentum_acceleration": momentum["momentum_acceleration"],
+        "momentum_score": momentum["momentum_score"],
+        "momentum_bullish": momentum["momentum_bullish"]
     }
 
 
 # ==========================================
-# MESIN UTAMA
+# MESIN UTAMA V9
 # ==========================================
 
 def run_v9():
@@ -376,9 +577,12 @@ def run_v9():
 
     print("Mode: READ ONLY")
     print("Timeframe:", INTERVAL)
+    print("Candle limit:", CANDLE_LIMIT)
     print("Konfirmasi: Dua candle selesai")
-    print("Pembanding: 24 candle sebelumnya")
     print("Breakout: Resistance 20 candle")
+    print("Momentum: RSI 14")
+    print("Momentum: MACD 12/26/9")
+    print("Momentum: Acceleration")
     print("======================================")
 
     results = []
@@ -386,12 +590,14 @@ def run_v9():
     for symbol in COINS:
 
         try:
+
             result = analyze_coin(symbol)
 
             if result:
                 results.append(result)
 
         except Exception as error:
+
             print(
                 symbol,
                 "ANALYSIS ERROR:",
@@ -413,6 +619,7 @@ def run_v9():
     for coin in results:
 
         print("\nCOIN:", coin["symbol"])
+
         print("Harga:", coin["price"])
 
         print(
@@ -434,17 +641,26 @@ def run_v9():
         )
 
         print(
-            "Skor:",
+            "Skor dasar:",
+            coin["base_score"],
+            "/ 100"
+        )
+
+        print(
+            "Skor momentum:",
+            coin["momentum_score"],
+            "/ 30"
+        )
+
+        print(
+            "Skor gabungan:",
             coin["score"],
             "/ 100"
         )
 
         print("Status:", coin["status"])
 
-        if "candle_time" in coin:
-            print("Candle:", coin["candle_time"])
-
-        # V4.3 BREAKOUT REPORT
+        # BREAKOUT REPORT
         print(
             "Resistance:",
             coin["resistance"]
@@ -460,6 +676,45 @@ def run_v9():
             round(coin["breakout_distance"], 2),
             "%"
         )
+
+        # MOMENTUM REPORT
+        print(
+            "RSI 14:",
+            round(coin["rsi"], 2)
+        )
+
+        print(
+            "MACD:",
+            coin["macd"]
+        )
+
+        print(
+            "MACD Signal:",
+            coin["macd_signal"]
+        )
+
+        print(
+            "MACD Histogram:",
+            coin["macd_histogram"]
+        )
+
+        print(
+            "MACD Bullish:",
+            "YA" if coin["macd_bullish"] else "TIDAK"
+        )
+
+        print(
+            "Momentum Acceleration:",
+            round(coin["momentum_acceleration"], 4),
+            "%"
+        )
+
+        print(
+            "Momentum Bullish:",
+            "YA" if coin["momentum_bullish"] else "TIDAK"
+        )
+
+        print("Candle:", coin["candle_time"])
 
     # ======================================
     # RINGKASAN
@@ -477,28 +732,38 @@ def run_v9():
 
     breakout_coins = [
         c for c in results
-        if c.get("breakout", False)
+        if c["breakout"]
     ]
 
-    print("\n========== RINGKASAN V9 ==========")
+    momentum_coins = [
+        c for c in results
+        if c["momentum_bullish"]
+    ]
+
+    print("\n========== RINGKASAN V9 V4.4 ==========")
 
     print("Total hasil:", len(results))
     print("Radar awal:", len(confirmed))
     print("Dalam pantauan:", len(watch))
     print("Breakout terdeteksi:", len(breakout_coins))
+    print("Momentum bullish:", len(momentum_coins))
 
     if confirmed:
 
         print("\nKANDIDAT RADAR AWAL:")
 
         for coin in confirmed:
+
             print(
                 coin["symbol"],
                 "| Skor:",
-                coin["score"]
+                coin["score"],
+                "| RSI:",
+                round(coin["rsi"], 2)
             )
 
     else:
+
         print("\nBelum ada radar awal terkonfirmasi.")
 
     if breakout_coins:
@@ -506,13 +771,25 @@ def run_v9():
         print("\nKOIN BREAKOUT:")
 
         for coin in breakout_coins:
+
             print(
                 coin["symbol"],
                 "| Resistance:",
-                coin["resistance"],
-                "| Jarak:",
-                round(coin["breakout_distance"], 2),
-                "%"
+                coin["resistance"]
+            )
+
+    if momentum_coins:
+
+        print("\nKOIN MOMENTUM BULLISH:")
+
+        for coin in momentum_coins:
+
+            print(
+                coin["symbol"],
+                "| RSI:",
+                round(coin["rsi"], 2),
+                "| Momentum:",
+                coin["momentum_score"]
             )
 
     print("\nMODE: READ ONLY")
@@ -527,9 +804,10 @@ def run_v9():
 if __name__ == "__main__":
 
     try:
+
         run_v9()
 
     except Exception as error:
+
         print("FATAL ERROR:", repr(error))
         raise
-    
