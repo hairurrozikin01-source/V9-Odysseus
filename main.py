@@ -7,15 +7,15 @@ import urllib.error
 from datetime import datetime, timezone
 
 # ==========================================
-# V9 ODYSSEUS SMART CONFIRMATION V4.2
+# V9 ODYSSEUS SMART CONFIRMATION V4.3
 # ==========================================
 
-VERSION = "V4.2"
+VERSION = "V4.3"
 INTERVAL = "1h"
 CANDLE_LIMIT = 30
-
-# Filter rata-rata volume per jam dalam USDT
 MIN_AVG_VOLUME = 10000
+
+BREAKOUT_LOOKBACK = 20
 
 COINS = [
     "DOGEUSDT",
@@ -40,13 +40,11 @@ API_URLS = [
     "https://api2.binance.com/api/v3/klines"
 ]
 
-
 # ==========================================
 # WAKTU CANDLE
 # ==========================================
 
 def format_time(timestamp):
-
     return datetime.fromtimestamp(
         timestamp / 1000,
         timezone.utc
@@ -75,7 +73,7 @@ def get_candles(symbol):
             request = urllib.request.Request(
                 url,
                 headers={
-                    "User-Agent": "V9-Odysseus/4.2",
+                    "User-Agent": "V9-Odysseus/4.3",
                     "Accept": "application/json"
                 }
             )
@@ -90,21 +88,23 @@ def get_candles(symbol):
                 )
 
                 if not isinstance(data, list):
-                    raise ValueError("Format data tidak valid")
+                    raise ValueError(
+                        "Format data tidak valid"
+                    )
 
                 if len(data) < 27:
-                    raise ValueError("Data candle kurang")
+                    raise ValueError(
+                        "Data candle kurang"
+                    )
 
                 return data
 
         except urllib.error.HTTPError as error:
-
             errors.append(
                 "HTTP " + str(error.code)
             )
 
         except Exception as error:
-
             errors.append(str(error)[:80])
 
     print(
@@ -129,6 +129,45 @@ def average(values):
 
 
 # ==========================================
+# V4.3 BREAKOUT DETECTOR
+# ==========================================
+
+def detect_breakout(candles, lookback=20):
+
+    if len(candles) < lookback + 2:
+        return None
+
+    # Candle terakhir masih berjalan
+    current = candles[-2]
+
+    # 20 candle selesai sebelum candle terbaru
+    previous = candles[-(lookback + 2):-2]
+
+    if len(previous) < lookback:
+        return None
+
+    # Resistance tertinggi
+    resistance = max(
+        float(c[2]) for c in previous
+    )
+
+    close_price = float(current[4])
+
+    if resistance <= 0:
+        return None
+
+    distance_pct = (
+        (close_price / resistance) - 1
+    ) * 100
+
+    return {
+        "breakout": close_price > resistance,
+        "resistance": resistance,
+        "distance_pct": distance_pct
+    }
+
+
+# ==========================================
 # ANALISIS COIN
 # ==========================================
 
@@ -143,7 +182,16 @@ def analyze_coin(symbol):
     current = candles[-2]
     previous = candles[-3]
 
-    # 24 candle sebelum masing-masing candle
+    # V4.3 BREAKOUT ANALYSIS
+    breakout_data = detect_breakout(
+        candles,
+        BREAKOUT_LOOKBACK
+    )
+
+    if breakout_data is None:
+        return None
+
+    # 24 candle pembanding
     baseline_now = candles[-26:-2]
     baseline_previous = candles[-27:-3]
 
@@ -184,7 +232,10 @@ def analyze_coin(symbol):
             "price": float(current[4]),
             "change": 0,
             "volume_ratio": 0,
-            "trade_ratio": 0
+            "trade_ratio": 0,
+            "breakout": breakout_data["breakout"],
+            "resistance": breakout_data["resistance"],
+            "breakout_distance": breakout_data["distance_pct"]
         }
 
     # Rasio volume
@@ -223,7 +274,7 @@ def analyze_coin(symbol):
     ) * 100
 
     # ======================================
-    # SISTEM SKOR 0-100
+    # SISTEM SKOR V4.2 (0-100)
     # ======================================
 
     score = 0
@@ -274,16 +325,17 @@ def analyze_coin(symbol):
     )
 
     if confirmed:
-
         status = "RADAR AWAL TERKONFIRMASI"
 
     elif score >= 40 and change_now > 0:
-
         status = "PANTAU"
 
     else:
-
         status = "BELUM ADA SINYAL"
+
+    # ======================================
+    # HASIL ANALISIS
+    # ======================================
 
     return {
         "symbol": symbol,
@@ -297,7 +349,12 @@ def analyze_coin(symbol):
         "avg_hourly_volume": avg_volume_now,
         "score": score,
         "status": status,
-        "candle_time": format_time(current[0])
+        "candle_time": format_time(current[0]),
+
+        # V4.3 BREAKOUT DATA
+        "breakout": breakout_data["breakout"],
+        "resistance": breakout_data["resistance"],
+        "breakout_distance": breakout_data["distance_pct"]
     }
 
 
@@ -321,6 +378,7 @@ def run_v9():
     print("Timeframe:", INTERVAL)
     print("Konfirmasi: Dua candle selesai")
     print("Pembanding: 24 candle sebelumnya")
+    print("Breakout: Resistance 20 candle")
     print("======================================")
 
     results = []
@@ -328,17 +386,15 @@ def run_v9():
     for symbol in COINS:
 
         try:
-
             result = analyze_coin(symbol)
 
             if result:
                 results.append(result)
 
         except Exception as error:
-
             print(
                 symbol,
-                "ANALISIS ERROR:",
+                "ANALYSIS ERROR:",
                 str(error)
             )
 
@@ -352,13 +408,11 @@ def run_v9():
     print("\n========== HASIL PEMINDAIAN ==========")
 
     if not results:
-
         print("Tidak ada data yang berhasil dipindai.")
 
     for coin in results:
 
         print("\nCOIN:", coin["symbol"])
-
         print("Harga:", coin["price"])
 
         print(
@@ -379,12 +433,33 @@ def run_v9():
             "x"
         )
 
-        print("Skor:", coin["score"], "/ 100")
+        print(
+            "Skor:",
+            coin["score"],
+            "/ 100"
+        )
 
         print("Status:", coin["status"])
 
         if "candle_time" in coin:
             print("Candle:", coin["candle_time"])
+
+        # V4.3 BREAKOUT REPORT
+        print(
+            "Resistance:",
+            coin["resistance"]
+        )
+
+        print(
+            "Breakout:",
+            "YA" if coin["breakout"] else "TIDAK"
+        )
+
+        print(
+            "Jarak resistance:",
+            round(coin["breakout_distance"], 2),
+            "%"
+        )
 
     # ======================================
     # RINGKASAN
@@ -400,13 +475,17 @@ def run_v9():
         if c["status"] == "PANTAU"
     ]
 
+    breakout_coins = [
+        c for c in results
+        if c.get("breakout", False)
+    ]
+
     print("\n========== RINGKASAN V9 ==========")
 
     print("Total hasil:", len(results))
-
     print("Radar awal:", len(confirmed))
-
     print("Dalam pantauan:", len(watch))
+    print("Breakout terdeteksi:", len(breakout_coins))
 
     if confirmed:
 
@@ -420,8 +499,21 @@ def run_v9():
             )
 
     else:
-
         print("\nBelum ada radar awal terkonfirmasi.")
+
+    if breakout_coins:
+
+        print("\nKOIN BREAKOUT:")
+
+        for coin in breakout_coins:
+            print(
+                coin["symbol"],
+                "| Resistance:",
+                coin["resistance"],
+                "| Jarak:",
+                round(coin["breakout_distance"], 2),
+                "%"
+            )
 
     print("\nMODE: READ ONLY")
     print("Tidak melakukan transaksi.")
@@ -438,7 +530,6 @@ if __name__ == "__main__":
         run_v9()
 
     except Exception as error:
-
         print("FATAL ERROR:", repr(error))
         raise
-                
+    
