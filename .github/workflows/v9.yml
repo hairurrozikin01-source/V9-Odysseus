@@ -15,7 +15,7 @@ jobs:
       - name: Checkout V9
         uses: actions/checkout@v4
         with:
-          ref: v4.5.1-development
+          ref: v4.5.3-development
 
       - name: Setup Python
         uses: actions/setup-python@v5
