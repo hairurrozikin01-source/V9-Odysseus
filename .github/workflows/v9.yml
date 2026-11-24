@@ -1,19 +1,21 @@
 
-        
 name: V9 Odysseus Engine
 
-"on":
+on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */4 * * *"
+    - cron: "*/15 * * * *"
 
 jobs:
   v9-monitor:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
-      - name: Download V9
+      - name: Checkout V9
         uses: actions/checkout@v4
+        with:
+          ref: v4.5.1-development
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -22,4 +24,3 @@ jobs:
 
       - name: Run V9
         run: python main.py
-
