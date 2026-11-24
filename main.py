@@ -6,13 +6,14 @@ import urllib.parse
 import urllib.error
 from datetime import datetime, timezone
 
-# ============================================================
-# V9 ODYSSEUS V4.5.2 - SIGNAL INTELLIGENCE
+# =========================================================
+# V9 ODYSSEUS V4.5.3
+# SIGNAL VALIDATION & PERFORMANCE INTELLIGENCE
 # READ ONLY - NO AUTOMATIC TRADING
-# Capital Protection First
-# ============================================================
+# CAPITAL PROTECTION FIRST
+# =========================================================
 
-VERSION = "V4.5.2"
+VERSION = "V4.5.3"
 
 SCAN_INTERVAL = "15m"
 VALIDATION_INTERVAL = "30m"
@@ -40,6 +41,11 @@ BASE_URLS = [
     "https://api2.binance.com",
 ]
 
+HORIZONS = {
+    "30m": 30 * 60 * 1000,
+    "1h": 60 * 60 * 1000,
+}
+
 
 def utc_now():
     return datetime.now(timezone.utc).strftime(
@@ -53,6 +59,7 @@ def api_get(path, params=None):
 
     for base in BASE_URLS:
         url = base + path
+
         if query:
             url += "?" + query
 
@@ -60,8 +67,8 @@ def api_get(path, params=None):
             request = urllib.request.Request(
                 url,
                 headers={
-                    "User-Agent": "V9-Odysseus/4.5.2",
-                    "Accept": "application/json"
+                    "User-Agent": "V9-Odysseus/4.5.3",
+                    "Accept": "application/json",
                 }
             )
 
@@ -74,6 +81,7 @@ def api_get(path, params=None):
 
         except urllib.error.HTTPError as exc:
             errors.append("HTTP " + str(exc.code))
+
             if exc.code in (418, 429):
                 time.sleep(5)
 
@@ -85,6 +93,25 @@ def api_get(path, params=None):
     )
 
 
+def load_history():
+    try:
+        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        if isinstance(data, list):
+            return data
+
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+
+    return []
+
+
+def save_json(filename, data):
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
 def ema(values, period):
     if len(values) < period:
         return None
@@ -93,34 +120,25 @@ def ema(values, period):
     result = sum(values[:period]) / period
 
     for value in values[period:]:
-        result = value * alpha + result * (1 - alpha)
+        result = alpha * value + (1 - alpha) * result
 
     return result
 
 
-def calculate_rsi(values, period=14):
-    if len(values) <= period:
-        return None
+def calculate_rsi(closes, period=14):
+    if len(closes) <= period:
+        return 50.0
 
-    changes = [
-        values[i] - values[i - 1]
-        for i in range(1, len(values))
-    ]
+    gains = []
+    losses = []
 
-    gains = [max(x, 0) for x in changes]
-    losses = [max(-x, 0) for x in changes]
+    for i in range(1, len(closes)):
+        change = closes[i] - closes[i - 1]
+        gains.append(max(change, 0))
+        losses.append(max(-change, 0))
 
-    avg_gain = sum(gains[:period]) / period
-    avg_loss = sum(losses[:period]) / period
-
-    for i in range(period, len(changes)):
-        avg_gain = (
-            avg_gain * (period - 1) + gains[i]
-        ) / period
-
-        avg_loss = (
-            avg_loss * (period - 1) + losses[i]
-        ) / period
+    avg_gain = sum(gains[-period:]) / period
+    avg_loss = sum(losses[-period:]) / period
 
     if avg_loss == 0:
         return 100.0
@@ -129,13 +147,37 @@ def calculate_rsi(values, period=14):
     return 100 - (100 / (1 + rs))
 
 
+def get_klines(symbol, interval, limit=CANDLE_LIMIT):
+    return api_get(
+        "/api/v3/klines",
+        {
+            "symbol": symbol,
+            "interval": interval,
+            "limit": limit,
+        }
+    )
+
+
+def candle_data(raw):
+    return {
+        "open_time": int(raw[0]),
+        "open": float(raw[1]),
+        "high": float(raw[2]),
+        "low": float(raw[3]),
+        "close": float(raw[4]),
+        "volume": float(raw[5]),
+        "close_time": int(raw[6]),
+        "quote_volume": float(raw[7]),
+        "trades": int(raw[8]),
+    }
+
+
 def get_universe():
     info = api_get("/api/v3/exchangeInfo")
     tickers = api_get("/api/v3/ticker/24hr")
 
     ticker_map = {
-        item["symbol"]: item
-        for item in tickers
+        item["symbol"]: item for item in tickers
     }
 
     symbols = []
@@ -156,16 +198,23 @@ def get_universe():
             continue
 
         try:
-            volume = float(ticker.get("quoteVolume", 0))
-            price = float(ticker.get("lastPrice", 0))
-        except (TypeError, ValueError):
+            quote_volume = float(
+                ticker.get("quoteVolume", 0)
+            )
+            last_price = float(
+                ticker.get("lastPrice", 0)
+            )
+        except (ValueError, TypeError):
             continue
 
-        if volume >= MIN_QUOTE_VOLUME_USDT and price > 0:
+        if (
+            quote_volume >= MIN_QUOTE_VOLUME_USDT
+            and last_price > 0
+        ):
             symbols.append({
                 "symbol": symbol,
-                "quote_volume_24h": volume,
-                "last_price": price
+                "quote_volume_24h": quote_volume,
+                "last_price": last_price,
             })
 
     symbols.sort(
@@ -179,363 +228,314 @@ def get_universe():
     return symbols
 
 
-def get_candles(symbol, interval):
-    rows = api_get(
-        "/api/v3/klines",
-        {
-            "symbol": symbol,
-            "interval": interval,
-            "limit": CANDLE_LIMIT
-        }
+def analyze_trend(symbol, interval):
+    raw = get_klines(symbol, interval, 60)
+
+    if len(raw) < 30:
+        return False
+
+    now_ms = int(time.time() * 1000)
+
+    candles = [
+        candle_data(x)
+        for x in raw
+        if int(x[6]) < now_ms
+    ]
+
+    if len(candles) < 30:
+        return False
+
+    closes = [x["close"] for x in candles]
+
+    fast = ema(closes, 9)
+    slow = ema(closes, 21)
+
+    return (
+        fast is not None
+        and slow is not None
+        and fast > slow
+        and closes[-1] > fast
     )
 
-    if not isinstance(rows, list) or len(rows) < 60:
-        raise ValueError("Data candle tidak cukup")
 
-    # Candle terakhir belum selesai, jangan digunakan.
-    return rows[:-1]
+def analyze_symbol(item):
+    symbol = item["symbol"]
 
+    raw = get_klines(symbol, SCAN_INTERVAL)
 
-def analyze(symbol_data):
-    symbol = symbol_data["symbol"]
+    now_ms = int(time.time() * 1000)
 
-    c15 = get_candles(symbol, SCAN_INTERVAL)
-    time.sleep(REQUEST_DELAY_SECONDS)
+    candles = [
+        candle_data(x)
+        for x in raw
+        if int(x[6]) < now_ms
+    ]
 
-    c30 = get_candles(symbol, VALIDATION_INTERVAL)
-    time.sleep(REQUEST_DELAY_SECONDS)
+    if len(candles) < 40:
+        return None
 
-    c1h = get_candles(symbol, TREND_INTERVAL)
+    closes = [x["close"] for x in candles]
+    current = candles[-1]
+    previous = candles[-2]
 
-    closes15 = [float(c[4]) for c in c15]
-    opens15 = [float(c[1]) for c in c15]
-    highs15 = [float(c[2]) for c in c15]
-    lows15 = [float(c[3]) for c in c15]
-    volumes15 = [float(c[7]) for c in c15]
-    trades15 = [float(c[8]) for c in c15]
-
-    closes30 = [float(c[4]) for c in c30]
-    closes1h = [float(c[4]) for c in c1h]
-
-    close_price = closes15[-1]
-    candle_open = opens15[-1]
-    candle_high = highs15[-1]
-    candle_low = lows15[-1]
-
-    change15 = (
-        (close_price / candle_open - 1) * 100
-        if candle_open else 0
-    )
-
-    avg_volume = sum(volumes15[-25:-1]) / 24
-    avg_trades = sum(trades15[-25:-1]) / 24
+    avg_volume = sum(
+        x["quote_volume"] for x in candles[-21:-1]
+    ) / 20
 
     volume_ratio = (
-        volumes15[-1] / avg_volume
-        if avg_volume else 0
+        current["quote_volume"] / avg_volume
+        if avg_volume > 0 else 0
     )
+
+    avg_trades = sum(
+        x["trades"] for x in candles[-21:-1]
+    ) / 20
 
     trade_ratio = (
-        trades15[-1] / avg_trades
-        if avg_trades else 0
+        current["trades"] / avg_trades
+        if avg_trades > 0 else 0
     )
 
-    rsi_value = calculate_rsi(closes15)
+    if avg_volume < MIN_AVG_QUOTE_VOLUME_15M:
+        return None
 
-    ema20_30 = ema(closes30, 20)
-    ema50_30 = ema(closes30, 50)
+    rsi = calculate_rsi(closes)
 
-    ema20_1h = ema(closes1h, 20)
-    ema50_1h = ema(closes1h, 50)
+    fast = ema(closes, 9)
+    slow = ema(closes, 21)
 
-    bullish30 = bool(
-        ema20_30
-        and ema50_30
-        and closes30[-1] > ema20_30 > ema50_30
+    if fast is None or slow is None:
+        return None
+
+    recent_high = max(
+        x["high"]
+        for x in candles[-BREAKOUT_LOOKBACK-1:-1]
     )
 
-    bullish1h = bool(
-        ema20_1h
-        and ema50_1h
-        and closes1h[-1] > ema20_1h > ema50_1h
+    bullish_30m = analyze_trend(
+        symbol, VALIDATION_INTERVAL
     )
 
-    resistance = max(
-        highs15[-(BREAKOUT_LOOKBACK + 1):-1]
-    )
-
-    breakout = close_price > resistance
-
-    # False breakout:
-    # Harga sempat menembus resistance tetapi
-    # candle berakhir kembali di bawah resistance.
-    false_breakout = (
-        candle_high > resistance
-        and close_price <= resistance
-    )
-
-    candle_range = max(candle_high - candle_low, 0)
-    upper_wick = candle_high - max(
-        candle_open, close_price
-    )
-
-    upper_wick_ratio = (
-        upper_wick / candle_range
-        if candle_range > 0 else 0
-    )
-
-    if (
-        candle_high > resistance
-        and close_price <= resistance
-        and upper_wick_ratio >= 0.35
-    ):
-        false_breakout = True
-
-    liquidity_ok = (
-        avg_volume >= MIN_AVG_QUOTE_VOLUME_15M
+    bullish_1h = analyze_trend(
+        symbol, TREND_INTERVAL
     )
 
     score = 0
 
-    if volume_ratio >= 2:
-        score += 25
-    elif volume_ratio >= 1.5:
-        score += 20
-    elif volume_ratio >= 1.2:
-        score += 10
-
-    if trade_ratio >= 1.5:
-        score += 15
-    elif trade_ratio >= 1.3:
-        score += 12
-    elif trade_ratio >= 1.1:
-        score += 5
-
-    if change15 > 0:
-        score += 5
-
-    if bullish30:
-        score += 15
-
-    if bullish1h:
+    if fast > slow:
         score += 20
 
-    if rsi_value is not None and 50 <= rsi_value <= 70:
+    if current["close"] > fast:
         score += 10
 
-    if breakout:
+    if volume_ratio >= MIN_VOLUME_RATIO:
+        score += 15
+
+    if trade_ratio >= MIN_TRADE_RATIO:
         score += 10
 
-    if not liquidity_ok:
-        status = "HINDARI - LIKUIDITAS RENDAH"
+    if 50 <= rsi <= 70:
+        score += 10
 
-    elif false_breakout:
-        status = "HINDARI - FALSE BREAKOUT"
+    if current["close"] > recent_high:
+        score += 20
 
-    elif breakout and bullish30 and bullish1h:
-        if volume_ratio >= MIN_VOLUME_RATIO:
-            status = "BREAKOUT TERKONFIRMASI"
-        else:
-            status = "PANTAU - VOLUME BELUM KUAT"
+    if bullish_30m:
+        score += 10
 
-    elif (
-        bullish30
-        and bullish1h
-        and volume_ratio >= MIN_VOLUME_RATIO
-        and trade_ratio >= MIN_TRADE_RATIO
-        and rsi_value is not None
-        and 50 <= rsi_value <= 72
-        and change15 > 0
-    ):
-        status = "RADAR AWAL - KONFIRMASI 30M/1H"
+    if bullish_1h:
+        score += 5
 
-    elif score >= 45:
-        status = "PANTAU"
+    if rsi > 80 or rsi < 30:
+        score = max(0, score - 15)
 
+    # WAJIB: KEDUA TIMEFRAME HARUS BULLISH
+    if not bullish_30m or not bullish_1h:
+        return None
+
+    if score < 60:
+        return None
+
+    if volume_ratio < MIN_VOLUME_RATIO:
+        status = "PANTAU - VOLUME RENDAH"
+    elif trade_ratio < MIN_TRADE_RATIO:
+        status = "PANTAU - AKTIVITAS RENDAH"
+    elif current["close"] <= previous["close"]:
+        status = "PANTAU - MOMENTUM LEMAH"
     else:
-        status = "BELUM ADA SINYAL"
-
-    candle_time = int(c15[-1][6])
+        status = "RADAR AWAL - BULLISH TERKONFIRMASI"
 
     return {
         "symbol": symbol,
-        "price": close_price,
         "score": score,
-        "status": status,
+        "price": current["close"],
+        "direction": "BUY",
+        "rsi_15m": round(rsi, 2),
         "volume_ratio_15m": round(volume_ratio, 2),
         "trade_ratio_15m": round(trade_ratio, 2),
-        "change_15m_pct": round(change15, 3),
-        "rsi_15m": (
-            round(rsi_value, 2)
-            if rsi_value is not None else None
-        ),
-        "trend_30m_bullish": bullish30,
-        "trend_1h_bullish": bullish1h,
-        "breakout": breakout,
-        "false_breakout": false_breakout,
-        "upper_wick_ratio": round(upper_wick_ratio, 3),
-        "resistance": resistance,
-        "quote_volume_24h_usdt": round(
-            symbol_data["quote_volume_24h"], 2
-        ),
-        "avg_quote_volume_15m": round(avg_volume, 2),
-        "candle_close_time_ms": candle_time
+        "trend_30m_bullish": bullish_30m,
+        "trend_1h_bullish": bullish_1h,
+        "quote_volume_24h": item["quote_volume_24h"],
+        "status": status,
+        "entry_time_ms": current["close_time"],
     }
 
 
-def load_history():
-    try:
-        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
+def evaluate_history(history):
+    now_ms = int(time.time() * 1000)
 
-        if isinstance(data, list):
-            return data
+    for signal in history:
+        for horizon, duration in HORIZONS.items():
+            result = signal["validation"][horizon]
 
-    except (FileNotFoundError, json.JSONDecodeError):
-        pass
+            if result["status"] != "PENDING":
+                continue
 
-    return []
+            due_time = (
+                signal["entry_time_ms"] + duration
+            )
+
+            if now_ms < due_time:
+                continue
+
+            try:
+                raw = api_get(
+                    "/api/v3/klines",
+                    {
+                        "symbol": signal["symbol"],
+                        "interval": "15m",
+                        "startTime": due_time - 900000,
+                        "limit": 4,
+                    }
+                )
+
+                eligible = [
+                    candle_data(x)
+                    for x in raw
+                    if int(x[6]) >= due_time
+                ]
+
+                if not eligible:
+                    continue
+
+                exit_price = eligible[0]["close"]
+                entry_price = signal["entry_price"]
+
+                change = (
+                    (exit_price - entry_price)
+                    / entry_price
+                ) * 100
+
+                if abs(change) <= 0.10:
+                    outcome = "NEUTRAL"
+                elif (
+                    signal["direction"] == "BUY"
+                    and change > 0
+                ):
+                    outcome = "POSITIVE"
+                else:
+                    outcome = "NEGATIVE"
+
+                result.update({
+                    "status": outcome,
+                    "exit_price": exit_price,
+                    "change_pct": round(change, 4),
+                    "evaluated_at": utc_now(),
+                })
+
+            except Exception as exc:
+                result["last_error"] = str(exc)[:120]
+
+            time.sleep(REQUEST_DELAY_SECONDS)
+
+    return history
 
 
 def update_history(results):
     history = load_history()
+    history = evaluate_history(history)
 
-    # Evaluasi sinyal lama setelah 4 candle 15m.
-    prices = {
-        row["symbol"]: row
-        for row in results
-    }
-
-    for item in history:
-        if item.get("status") != "PENDING":
-            continue
-
-        current = prices.get(item["symbol"])
-
-        if not current:
-            continue
-
-        if (
-            current["candle_close_time_ms"]
-            < item["evaluation_time_ms"]
-        ):
-            continue
-
-        entry = item["entry_price"]
-        exit_price = current["price"]
-
-        if entry <= 0:
-            continue
-
-        change = (exit_price / entry - 1) * 100
-
-        item["exit_price"] = exit_price
-        item["return_pct"] = round(change, 4)
-        item["result"] = (
-            "POSITIVE" if change > 0
-            else "NEGATIVE" if change < 0
-            else "FLAT"
-        )
-        item["status"] = "COMPLETED"
-
-    # Catat sinyal baru tanpa menggandakan candle.
     existing = {
-        (
-            item["symbol"],
-            item["signal_candle_time_ms"]
-        )
-        for item in history
+        (x["symbol"], x["entry_time_ms"])
+        for x in history
     }
 
-    for row in results:
-        if row["status"] not in (
-            "RADAR AWAL - KONFIRMASI 30M/1H",
-            "BREAKOUT TERKONFIRMASI"
-        ):
-            continue
-
+    for item in results:
         key = (
-            row["symbol"],
-            row["candle_close_time_ms"]
+            item["symbol"],
+            item["entry_time_ms"]
         )
 
         if key in existing:
             continue
 
         history.append({
-            "symbol": row["symbol"],
-            "signal_time_utc": utc_now(),
-            "signal_candle_time_ms": row["candle_close_time_ms"],
-            "evaluation_time_ms": (
-                row["candle_close_time_ms"] + 4 * 15 * 60 * 1000
-            ),
-            "entry_price": row["price"],
-            "score": row["score"],
-            "signal_type": row["status"],
-            "status": "PENDING"
+            "symbol": item["symbol"],
+            "direction": item["direction"],
+            "entry_price": item["price"],
+            "entry_time_ms": item["entry_time_ms"],
+            "created_at": utc_now(),
+            "validation": {
+                "30m": {"status": "PENDING"},
+                "1h": {"status": "PENDING"},
+            },
         })
 
-    history = history[-500:]
+    history = history[-5000:]
 
-    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(history, f, indent=2, ensure_ascii=False)
+    save_json(HISTORY_FILE, history)
 
-    completed = [
-        item for item in history
-        if item.get("status") == "COMPLETED"
-    ]
+    return history
 
-    positive = sum(
-        1 for item in completed
-        if item.get("result") == "POSITIVE"
-    )
 
-    negative = sum(
-        1 for item in completed
-        if item.get("result") == "NEGATIVE"
-    )
-
-    total = positive + negative
-
-    observed_rate = (
-        round(positive / total * 100, 2)
-        if total else None
-    )
-
-    return {
-        "total_completed": len(completed),
-        "positive": positive,
-        "negative": negative,
-        "pending": sum(
-            1 for item in history
-            if item.get("status") == "PENDING"
-        ),
-        "observed_positive_rate_pct": observed_rate
+def calculate_performance(history):
+    stats = {
+        "total_completed": 0,
+        "positive": 0,
+        "negative": 0,
+        "neutral": 0,
+        "pending": 0,
+        "success_rate_pct": None,
     }
+
+    for signal in history:
+        for result in signal["validation"].values():
+            status = result["status"]
+
+            if status == "PENDING":
+                stats["pending"] += 1
+            else:
+                stats["total_completed"] += 1
+                stats[status.lower()] += 1
+
+    decided = stats["positive"] + stats["negative"]
+
+    if decided > 0:
+        stats["success_rate_pct"] = round(
+            stats["positive"] / decided * 100, 2
+        )
+
+    return stats
 
 
 def run_v9():
-    print("=" * 60)
-    print("V9 ODYSSEUS", VERSION, "| SIGNAL INTELLIGENCE")
-    print("Waktu:", utc_now())
+    print("=" * 55)
+    print("V9 ODYSSEUS", VERSION)
     print("Mode: READ ONLY")
+    print("Waktu:", utc_now())
     print("Scan: 15m | Validasi: 30m | Tren: 1h")
-    print("Minimum volume 24h: $5,000,000")
-    print("=" * 60)
+    print("=" * 55)
 
     universe = get_universe()
 
-    print(
-        "Pasangan USDT lolos filter:",
-        len(universe)
-    )
+    print("Pasangan lolos filter:", len(universe))
 
     results = []
     failures = []
 
     for index, item in enumerate(universe, 1):
         try:
-            result = analyze(item)
+            result = analyze_symbol(item)
 
             if result:
                 results.append(result)
@@ -543,13 +543,12 @@ def run_v9():
         except Exception as exc:
             failures.append({
                 "symbol": item["symbol"],
-                "error": str(exc)[:150]
+                "error": str(exc)[:150],
             })
 
         if index % 25 == 0 or index == len(universe):
             print(
-                "Progres:",
-                index, "/", len(universe),
+                "Progres:", index, "/", len(universe),
                 "| hasil:", len(results),
                 "| gagal:", len(failures)
             )
@@ -559,12 +558,13 @@ def run_v9():
     results.sort(
         key=lambda x: (
             x["score"],
-            x["quote_volume_24h_usdt"]
+            x["quote_volume_24h"]
         ),
         reverse=True
     )
 
-    performance = update_history(results)
+    history = update_history(results)
+    performance = calculate_performance(history)
 
     report = {
         "version": VERSION,
@@ -575,18 +575,17 @@ def run_v9():
             "validation_interval": VALIDATION_INTERVAL,
             "trend_interval": TREND_INTERVAL,
             "minimum_24h_volume_usdt": MIN_QUOTE_VOLUME_USDT,
-            "minimum_average_15m_volume_usdt": MIN_AVG_QUOTE_VOLUME_15M
+            "minimum_average_15m_volume_usdt": MIN_AVG_QUOTE_VOLUME_15M,
         },
         "universe_count": len(universe),
         "analyzed_count": len(results),
         "failed_count": len(failures),
         "performance": performance,
         "results": results,
-        "failures": failures
+        "failures": failures,
     }
 
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        json.dump(report, f, indent=2, ensure_ascii=False)
+    save_json(OUTPUT_FILE, report)
 
     print("\n========== TOP 20 V9 ==========")
 
@@ -594,12 +593,12 @@ def run_v9():
         print(
             row["symbol"],
             "| skor:", row["score"],
-            "| volume:", row["volume_ratio_15m"], "x",
-            "| trades:", row["trade_ratio_15m"], "x",
             "| RSI:", row["rsi_15m"],
+            "| volume:", row["volume_ratio_15m"],
+            "| trades:", row["trade_ratio_15m"],
             "| 30m:", row["trend_30m_bullish"],
             "| 1h:", row["trend_1h_bullish"],
-            "|", row["status"]
+            "|", row["status"],
         )
 
     print("\n========== STATISTIK ==========")
@@ -607,7 +606,7 @@ def run_v9():
     for key, value in performance.items():
         print(key + ":", value)
 
-    print("\nGagal dianalisis:", len(failures))
+    print("Gagal dianalisis:", len(failures))
     print("Laporan:", OUTPUT_FILE)
     print("Riwayat:", HISTORY_FILE)
     print("READ ONLY - TIDAK ADA TRANSAKSI")
@@ -619,4 +618,3 @@ if __name__ == "__main__":
     except Exception as exc:
         print("FATAL ERROR:", repr(exc))
         raise
-                
