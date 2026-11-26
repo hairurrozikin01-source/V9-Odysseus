@@ -93,7 +93,7 @@ class MT5ReadOnlyAdapterTests(unittest.TestCase):
             first.pop(key)
         export = {
             "broker": "Exness", "account_type": "Raw Spread",
-            "platform": "MT5", "mode": "READ ONLY",
+            "account_currency": "USD", "platform": "MT5", "mode": "READ ONLY",
             "exported_at_utc": "2026-11-26T09:00:00Z",
             "snapshots": [first, first]
         }
