@@ -8,6 +8,7 @@ on:
       - v9.5-odysseus-development
       - v9.5.1-risk-validation
       - v9.5.2-risk-monitor
+      - v9.6-multi-market-foundation
   schedule:
     - cron: "*/15 * * * *"
 
@@ -37,7 +38,7 @@ jobs:
           restore-keys: |
             v9-state-${{ runner.os }}-
 
-      - name: Test V9, SHIB Hunter, Odysseus, and Risk Monitor
+      - name: Test V9, SHIB Hunter, Odysseus, Risk Monitor, and MT5 Read-Only Adapter
         run: python -m unittest discover -s tests -v
 
       - name: Run V9
