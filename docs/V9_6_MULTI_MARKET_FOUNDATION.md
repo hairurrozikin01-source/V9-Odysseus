@@ -82,8 +82,15 @@ V9 is planned to support:
 - If market data, broker metadata, or risk calculations cannot be validated, do not issue an executable order intent.
 - User approval is required before enabling any live execution capability.
 
+## Read-only technical watch analyzer
+
+The development branch now includes `mt5_strategy.py`, a technical-context analyzer that consumes normalized Exness MT5 snapshots. It calculates EMA(9), EMA(21), RSI(14), ATR(14), and spread-to-ATR ratio, then labels each symbol as BULLISH_WATCH, BEARISH_WATCH, NO_SETUP, BLOCKED_WIDE_SPREAD, or INSUFFICIENT_DATA.
+
+This is a watch-list foundation only. It does not produce an executable entry, stop-loss, take-profit, lot size, portfolio risk approval, or order. Its default spread filter is a configurable engineering threshold and must be calibrated with broker demo data before any strategy evaluation. The analyzer is covered by unit tests and is automatically included by unittest discovery.
+
 ## Current implementation status
 
-- Existing V9 crypto engine and SHIB Hunter remain separate from the planned MT5 market adapter.
+- Existing V9 crypto engine and SHIB Hunter remain separate from the MT5 market adapter.
+- MT5 normalized snapshot validation and a read-only technical watch analyzer are implemented on the V9.6 development branch; actual MT5 data capture and MetaEditor compilation remain unverified.
 - Odysseus and Risk Monitor are rule-based/read-only foundations, not a fully autonomous AI agent or complete portfolio risk platform.
 - V9.5.2 Risk Monitor CI passed in GitHub Actions Run #52. That confirms the tested software workflow, not trading performance or live readiness.
