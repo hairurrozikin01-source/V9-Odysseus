@@ -39,6 +39,12 @@ bool IsEligibleSymbol(string symbol, string &market_type,
       base_currency == "XPD")
       return false;
 
+   string currencies = "|USD|EUR|GBP|JPY|CHF|AUD|NZD|CAD|CNH|HKD|SGD|NOK|SEK|DKK|PLN|CZK|HUF|TRY|ZAR|MXN|THB|ILS|";
+   if(base_currency == quote_currency ||
+      StringFind(currencies, "|" + base_currency + "|") < 0 ||
+      StringFind(currencies, "|" + quote_currency + "|") < 0)
+      return false;
+
    market_type = "FOREX";
    return true;
 }
