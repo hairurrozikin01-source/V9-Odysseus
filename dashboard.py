@@ -90,7 +90,7 @@ def build_dashboard(reports, generated_at=None):
         if missing else "Semua empat laporan tersedia untuk sesi ini."
     )
 
-    return """<!doctype html>
+    page = """<!doctype html>
 <html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0b1020"><title>V9 Odysseus — Dashboard</title>
 <style>
@@ -121,13 +121,24 @@ footer{color:var(--muted);font-size:12px;margin-top:22px}
 <section><h2>SHIB Hunter — daftar pantauan</h2><div class="tablewrap"><table><thead><tr><th>Token</th><th>Chain</th><th>Skor</th><th>Keamanan</th></tr></thead><tbody>{''.join(token_rows)}</tbody></table></div><p class="sub">Kandidat watchlist bukan rekomendasi beli. Status keamanan yang belum terverifikasi memerlukan pemeriksaan independen.</p></section>
 <section><h2>Batasan sistem</h2><ul><li>Data berasal dari laporan pemindaian pada satu eksekusi GitHub Actions.</li><li>SHIB Hunter bukan pemindai seluruh token dan bukan audit keamanan kontrak.</li><li>Risk Monitor saat ini memeriksa integritas laporan dan peringatan, bukan risiko portofolio atau drawdown akun.</li><li>Belum ada estimasi profit, win rate, atau jaminan hasil.</li><li>Data Gold/Forex MT5 belum aktif sampai exporter diuji pada terminal Windows.</li></ul></section>
 <footer>V9 Odysseus • Dibuat otomatis oleh GitHub Actions • {generated_at}</footer>
-</main></body></html>""".format(
-        generated_at=_safe(generated_at), len=len, signals=signals,
-        watchlist=watchlist, audits=audits, flags=flags, risk_class=risk_class,
-        risk_level=risk_level, risk=risk, data_note=_safe(data_note),
-        flag_rows="".join(flag_rows), signal_rows="".join(signal_rows),
-        token_rows="".join(token_rows),
-    )
+</main></body></html>"""
+    replacements = {
+        "{generated_at}": _safe(generated_at),
+        "{len(signals)}": str(len(signals)),
+        "{len(watchlist)}": str(len(watchlist)),
+        "{len(audits)}": str(len(audits)),
+        "{len(flags)}": str(len(flags)),
+        "{risk_class}": risk_class,
+        "{_safe(risk_level)}": _safe(risk_level),
+        "{_safe(risk.get(\"summary\", \"Laporan risiko belum tersedia.\"))}": _safe(risk.get("summary", "Laporan risiko belum tersedia.")),
+        "{_safe(data_note)}": _safe(data_note),
+        "{''.join(flag_rows)}": "".join(flag_rows),
+        "{''.join(signal_rows)}": "".join(signal_rows),
+        "{''.join(token_rows)}": "".join(token_rows),
+    }
+    for marker, value in replacements.items():
+        page = page.replace(marker, value)
+    return page
 
 
 def run(output_file=OUTPUT_FILE):
