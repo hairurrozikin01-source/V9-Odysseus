@@ -54,13 +54,16 @@ jobs:
       - name: Run V9 read-only risk monitor
         run: python risk_monitor.py
 
+      - name: Build mobile dashboard
+        run: python dashboard.py
+
       - name: Save persistent signal history
         uses: actions/cache/save@v4
         with:
           path: .v9-state/
           key: v9-state-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
 
-      - name: Upload V9, SHIB Hunter, Odysseus, and risk reports
+      - name: Upload V9, SHIB Hunter, Odysseus, risk reports, and mobile dashboard
         uses: actions/upload-artifact@v4
         with:
           name: v9-odysseus-reports-${{ github.run_id }}
@@ -69,5 +72,6 @@ jobs:
             shib_hunter_results.json
             odysseus_audit_report.json
             v9_risk_monitor_report.json
+            v9_dashboard.html
           if-no-files-found: warn
           retention-days: 7
