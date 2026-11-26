@@ -27,24 +27,27 @@ bool IsEligibleSymbol(string symbol, string &market_type,
    if(StringLen(base_currency) != 3 || StringLen(quote_currency) != 3)
       return false;
 
-   if(base_currency == "XAU")
-   {
-      market_type = "METAL";
-      return true;
-   }
-
-   // Exclude metals other than Gold and non-FX products by requiring
-   // three-letter ISO-style currency fields from the broker metadata.
-   if(base_currency == "XAG" || base_currency == "XPT" ||
-      base_currency == "XPD")
-      return false;
-
-   // Curated ISO fiat-currency allowlist. Broker symbol discovery still decides
-   // which actual pairs exist; non-currency CFDs and crypto tickers are excluded.
+   // Curated ISO fiat-currency allowlist. Broker symbol discovery decides
+   // which actual instruments exist; this prevents non-fiat CFDs being
+   // classified as Forex or Gold crosses.
    string currencies = "|USD|EUR|GBP|JPY|CHF|AUD|NZD|CAD|CNH|CNY|HKD|SGD|NOK|SEK|DKK|PLN|CZK|HUF|TRY|ZAR|MXN|THB|ILS|"
                        "IDR|INR|KRW|MYR|PHP|TWD|VND|BRL|CLP|COP|PEN|ARS|"
                        "SAR|AED|QAR|KWD|BHD|OMR|EGP|NGN|KES|GHS|PKR|"
                        "ISK|RON|BGN|RSD|UAH|GEL|AMD|AZN|DZD|MAD|";
+
+   if(base_currency == "XAU")
+   {
+      if(StringFind(currencies, "|" + quote_currency + "|") < 0)
+         return false;
+      market_type = "METAL";
+      return true;
+   }
+
+   // Exclude metals other than Gold and non-FX products.
+   if(base_currency == "XAG" || base_currency == "XPT" ||
+      base_currency == "XPD")
+      return false;
+
    if(base_currency == quote_currency ||
       StringFind(currencies, "|" + base_currency + "|") < 0 ||
       StringFind(currencies, "|" + quote_currency + "|") < 0)
