@@ -57,6 +57,9 @@ jobs:
       - name: Build MT5 data quality report
         run: python mt5_quality_runner.py
 
+      - name: Build MT5 data-quality report (READ ONLY)
+        run: python mt5_quality_report.py
+
       - name: Build mobile dashboard
         run: python dashboard.py
 
