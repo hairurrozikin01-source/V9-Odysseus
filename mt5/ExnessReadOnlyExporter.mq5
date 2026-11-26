@@ -163,7 +163,10 @@ void OnStart()
       FileWriteString(handle, "},\"tick\":{");
       FileWriteString(handle, "\"bid\":" + Number(tick.bid, (int)digits) + ",");
       FileWriteString(handle, "\"ask\":" + Number(tick.ask, (int)digits) + ",");
-      FileWriteString(handle, "\"timestamp_utc\":\"" + IsoUtc(TimeGMT()) + "\"");
+      // Use the quote's own broker timestamp, converted to UTC with the
+      // current server offset. Do not stamp old quotes with export time.
+      datetime utc_tick = tick.time - (TimeTradeServer() - TimeGMT());
+      FileWriteString(handle, "\"timestamp_utc\":\"" + IsoUtc(utc_tick) + "\"");
       FileWriteString(handle, "},\"candles\":[");
 
       for(int candle = 0; candle < copied; candle++)
