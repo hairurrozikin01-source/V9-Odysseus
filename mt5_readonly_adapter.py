@@ -74,6 +74,7 @@ def normalize_symbol(raw):
         "point": _number(raw.get("point"), "point", positive=True),
         "tick_size": _number(raw.get("tick_size"), "tick_size", positive=True),
         "tick_value": _number(raw.get("tick_value"), "tick_value", positive=True),
+        "tick_value_currency": str(raw.get("tick_value_currency", "")).upper(),
         "contract_size": _number(raw.get("contract_size"), "contract_size", positive=True),
         "volume_min": volume_min,
         "volume_max": volume_max,
@@ -84,6 +85,8 @@ def normalize_symbol(raw):
     }
     if not normalized["base_currency"] or not normalized["quote_currency"]:
         raise SnapshotValidationError("base_currency and quote_currency are required")
+    if not normalized["tick_value_currency"]:
+        raise SnapshotValidationError("tick_value_currency is required")
     return normalized
 
 
@@ -155,10 +158,17 @@ def normalize_snapshot(raw):
     if raw.get("symbol") != symbol["symbol"]:
         raise SnapshotValidationError("snapshot symbol does not match metadata symbol")
 
+    account_currency = raw.get("account_currency")
+    if not isinstance(account_currency, str) or not account_currency.strip():
+        raise SnapshotValidationError("account_currency is required")
+    if symbol["tick_value_currency"] != account_currency.upper():
+        raise SnapshotValidationError("tick_value_currency must match account_currency")
+
     return {
         "version": VERSION,
         "broker": "Exness",
         "account_type": "Raw Spread",
+        "account_currency": account_currency.upper(),
         "platform": "MT5",
         "mode": MODE,
         "symbol": symbol["symbol"],
@@ -189,6 +199,9 @@ def normalize_export(raw):
         raise SnapshotValidationError("export platform must be MT5")
     if raw.get("account_type") != "Raw Spread":
         raise SnapshotValidationError("export account_type must be Raw Spread")
+    account_currency = raw.get("account_currency")
+    if not isinstance(account_currency, str) or not account_currency.strip():
+        raise SnapshotValidationError("export account_currency is required")
     if raw.get("mode") != MODE:
         raise SnapshotValidationError("export mode must be READ ONLY")
     exported_at = _utc_timestamp(raw.get("exported_at_utc"))
@@ -207,6 +220,7 @@ def normalize_export(raw):
                 "broker": "Exness",
                 "platform": "MT5",
                 "account_type": "Raw Spread",
+                "account_currency": account_currency.upper(),
                 "mode": MODE,
             })
             result = normalize_snapshot(snapshot_input)
@@ -234,6 +248,7 @@ def normalize_export(raw):
         "version": VERSION,
         "broker": "Exness",
         "account_type": "Raw Spread",
+        "account_currency": account_currency.upper(),
         "platform": "MT5",
         "mode": MODE,
         "exported_at_utc": exported_at,
