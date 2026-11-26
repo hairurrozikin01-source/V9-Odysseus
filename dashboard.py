@@ -13,6 +13,7 @@ FILES = {
     "shib": "shib_hunter_results.json",
     "odysseus": "odysseus_audit_report.json",
     "risk": "v9_risk_monitor_report.json",
+    "mt5_quality": "mt5_data_quality_report.json",
 }
 OUTPUT_FILE = "v9_dashboard.html"
 
@@ -37,6 +38,7 @@ def build_dashboard(reports, generated_at=None):
     shib = reports.get("shib") if isinstance(reports.get("shib"), dict) else {}
     ody = reports.get("odysseus") if isinstance(reports.get("odysseus"), dict) else {}
     risk = reports.get("risk") if isinstance(reports.get("risk"), dict) else {}
+    mt5_quality = reports.get("mt5_quality") if isinstance(reports.get("mt5_quality"), dict) else {}
 
     signals = v9.get("results") if isinstance(v9.get("results"), list) else []
     candidates = shib.get("candidates") if isinstance(shib.get("candidates"), list) else []
@@ -84,6 +86,19 @@ def build_dashboard(reports, generated_at=None):
     if not flag_rows:
         flag_rows = ['<li class="muted">Tidak ada peringatan yang tercatat, atau laporan belum tersedia.</li>']
 
+    mt5_results = mt5_quality.get("results") if isinstance(mt5_quality.get("results"), list) else []
+    mt5_rows = []
+    for item in mt5_results[:50]:
+        if isinstance(item, dict):
+            findings = item.get("findings") if isinstance(item.get("findings"), list) else []
+            codes = ", ".join(str(f.get("code", "CHECK")) for f in findings if isinstance(f, dict))
+            mt5_rows.append("<tr><td>{}</td><td>{}</td><td>{}</td></tr>".format(
+                _safe(item.get("symbol")), _safe(item.get("status")),
+                _safe(codes or "Tidak ada temuan")
+            ))
+    if not mt5_rows:
+        mt5_rows = ['<tr><td colspan="3" class="muted">Belum ada ekspor MT5 Exness. Jalankan exporter READ ONLY pada terminal MT5 Windows setelah dikompilasi dan diuji.</td></tr>']
+
     missing = [key for key in FILES if not isinstance(reports.get(key), dict)]
     data_note = (
         "Laporan belum tersedia: " + ", ".join(missing) + "."
@@ -115,6 +130,7 @@ footer{color:var(--muted);font-size:12px;margin-top:22px}
 <div class="card"><div class="sub">Audit Odysseus</div><div class="metric">{len(audits)}</div></div>
 <div class="card"><div class="sub">Peringatan Risiko</div><div class="metric">{len(flags)}</div></div>
 </div>
+<section><h2>Kualitas Data Pasar MT5 — Exness Raw Spread</h2><p class="sub">Pemeriksaan integritas snapshot; bukan sinyal atau persetujuan transaksi.</p><div class="tablewrap"><table><thead><tr><th>Simbol</th><th>Status</th><th>Temuan</th></tr></thead><tbody>{''.join(mt5_rows)}</tbody></table></div><p class="sub">Mode READ ONLY • Orders disabled • Hasil PASS tetap memerlukan pemeriksaan manusia.</p></section>
 <section><h2>Status Risk Monitor</h2><div class="metric {risk_class}">{_safe(risk_level)}</div><p class="sub">{_safe(risk.get("summary", "Laporan risiko belum tersedia."))}</p><div class="sub">{_safe(data_note)}</div></section>
 <section><h2>Peringatan dan pemeriksaan</h2><ul>{''.join(flag_rows)}</ul></section>
 <section><h2>Hasil analisis V9 — maksimal 30</h2><div class="tablewrap"><table><thead><tr><th>Simbol</th><th>Skor</th><th>RSI 15m</th><th>Status</th></tr></thead><tbody>{''.join(signal_rows)}</tbody></table></div></section>
@@ -135,6 +151,7 @@ footer{color:var(--muted);font-size:12px;margin-top:22px}
         "{''.join(flag_rows)}": "".join(flag_rows),
         "{''.join(signal_rows)}": "".join(signal_rows),
         "{''.join(token_rows)}": "".join(token_rows),
+        "{''.join(mt5_rows)}": "".join(mt5_rows),
     }
     for marker, value in replacements.items():
         page = page.replace(marker, value)
