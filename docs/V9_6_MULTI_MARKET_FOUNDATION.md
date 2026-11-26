@@ -108,3 +108,9 @@ The exporter now includes the MT5 account deposit currency and labels the export
 - A read-only MT5 position risk calculator and unit tests are added. The MQL5 exporter now labels tick value with account currency; the adapter and calculator reject currency mismatches. Actual Exness metadata, commission, and symbol-specific volume constraints still require demo-terminal verification.
 - Odysseus and Risk Monitor are rule-based/read-only foundations, not a fully autonomous AI agent or complete portfolio risk platform.
 - V9.5.2 Risk Monitor CI passed in GitHub Actions Run #52. That confirms the tested software workflow, not trading performance or live readiness.
+
+## Read-only MT5 risk orchestration pipeline
+
+The branch now includes `mt5_risk_pipeline.py`, which orchestrates the validated multi-symbol export, per-symbol technical watch analysis, broker-metadata position-risk estimate, and portfolio risk gate for one explicitly supplied candidate. It requires the candidate side to match the technical watch status, and requires the caller to supply account currency, account equity/daily loss, existing open-position risk, and candidate currency exposure. Missing or invalid inputs fail closed.
+
+A result of `WATCH_AND_RISK_CHECK_PASSED` means only that the supplied snapshot and supplied risk inputs passed these software checks. It is not trade approval, an order intent, or a recommendation to trade. The pipeline always returns `orders_enabled: false`, `new_risk_allowed: false`, and `automated_trade_instruction: false`. Account and exposure inputs are not independently read from or verified by Exness. Unit tests have been added; execution in GitHub Actions and validation with real demo-terminal exports are still pending.
