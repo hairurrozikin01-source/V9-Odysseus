@@ -1,5 +1,6 @@
 
 import json
+import os
 import time
 import urllib.request
 import urllib.parse
@@ -13,7 +14,8 @@ from datetime import datetime, timezone
 # CAPITAL PROTECTION FIRST
 # =========================================================
 
-VERSION = "V4.5.3"
+VERSION = "V9.4.6"
+ENGINE_BASE_VERSION = "V4.5.3"
 
 SCAN_INTERVAL = "15m"
 VALIDATION_INTERVAL = "30m"
@@ -32,7 +34,7 @@ REQUEST_DELAY_SECONDS = 0.12
 MAX_SYMBOLS = 0
 
 OUTPUT_FILE = "v9_scan_results.json"
-HISTORY_FILE = "v9_signal_history.json"
+HISTORY_FILE = ".v9-state/v9_signal_history.json"
 
 BASE_URLS = [
     "https://data-api.binance.vision",
@@ -67,7 +69,7 @@ def api_get(path, params=None):
             request = urllib.request.Request(
                 url,
                 headers={
-                    "User-Agent": "V9-Odysseus/4.5.3",
+                    "User-Agent": "V9-Odysseus/9.4.6",
                     "Accept": "application/json",
                 }
             )
@@ -101,15 +103,29 @@ def load_history():
         if isinstance(data, list):
             return data
 
-    except (FileNotFoundError, json.JSONDecodeError):
-        pass
+    except FileNotFoundError:
+        return []
 
-    return []
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            "Riwayat sinyal rusak; hentikan scan agar data tidak tertimpa."
+        ) from exc
+
+    raise ValueError("Format riwayat sinyal tidak valid; data harus berupa list.")
 
 
 def save_json(filename, data):
-    with open(filename, "w", encoding="utf-8") as f:
+    directory = os.path.dirname(filename)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+
+    temporary_file = filename + ".tmp"
+    with open(temporary_file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
+        f.flush()
+        os.fsync(f.fileno())
+
+    os.replace(temporary_file, filename)
 
 
 def ema(values, period):
@@ -520,7 +536,7 @@ def calculate_performance(history):
 
 def run_v9():
     print("=" * 55)
-    print("V9 ODYSSEUS", VERSION)
+    print("V9 ODYSSEUS", VERSION, "| ENGINE BASE", ENGINE_BASE_VERSION)
     print("Mode: READ ONLY")
     print("Waktu:", utc_now())
     print("Scan: 15m | Validasi: 30m | Tren: 1h")
@@ -568,6 +584,7 @@ def run_v9():
 
     report = {
         "version": VERSION,
+        "engine_base_version": ENGINE_BASE_VERSION,
         "scan_time_utc": utc_now(),
         "mode": "READ ONLY",
         "configuration": {
