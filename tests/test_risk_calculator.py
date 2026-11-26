@@ -10,6 +10,7 @@ def metadata(**overrides):
         "mode": "READ ONLY",
         "tick_size": 0.01,
         "tick_value": 1.0,
+        "tick_value_currency": "USD",
         "volume_min": 0.01,
         "volume_max": 100.0,
         "volume_step": 0.01,
@@ -27,6 +28,7 @@ class RiskCalculatorTests(unittest.TestCase):
             stop_loss_price=1999.0,
             equity=1000.0,
             risk_pct=1.0,
+            account_currency="USD",
         )
         self.assertEqual(result["status"], "CALCULATED")
         self.assertEqual(result["volume_lots"], 0.1)
@@ -45,6 +47,7 @@ class RiskCalculatorTests(unittest.TestCase):
                 stop_loss_price=1999,
                 equity=1000,
                 risk_pct=1,
+                account_currency="USD",
             )
 
     def test_buy_stop_must_be_below_entry(self):
@@ -66,6 +69,7 @@ class RiskCalculatorTests(unittest.TestCase):
             stop_loss_price=1900,
             equity=100,
             risk_pct=0.1,
+            account_currency="USD",
         )
         self.assertEqual(result["status"], "BLOCKED_BELOW_MIN_VOLUME")
         self.assertEqual(result["volume_lots"], 0.0)
@@ -136,6 +140,18 @@ class RiskCalculatorTests(unittest.TestCase):
                 stop_loss_price=1999,
                 equity=1000,
                 risk_pct=101,
+            )
+
+    def test_tick_value_currency_must_match_account(self):
+        with self.assertRaises(RiskCalculationError):
+            calculate_position_risk(
+                symbol_metadata=metadata(tick_value_currency="USD"),
+                side="BUY",
+                entry_price=2000,
+                stop_loss_price=1999,
+                equity=1000,
+                risk_pct=1,
+                account_currency="IDR",
             )
 
     def test_orders_always_disabled(self):
