@@ -10,6 +10,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
+import re
 import sqlite3
 from pathlib import Path
 from typing import Any, Mapping
@@ -29,6 +31,50 @@ def _json(value: Any) -> str:
 
 def _hash(previous_hash: str, record: Mapping[str, Any]) -> str:
     return hashlib.sha256(previous_hash.encode("ascii") + b"\n" + _json(record).encode("utf-8")).hexdigest()
+
+
+def _validate_details(details: Mapping[str, Any]) -> dict[str, Any]:
+    """Reject credential-like fields and bound untrusted proposal payloads."""
+    if not isinstance(details, Mapping) or not details:
+        raise RepositoryError("Detail proposal harus berupa mapping yang tidak kosong.")
+    nodes = 0
+    forbidden = {"password", "passwd", "otp", "secret", "token", "apikey", "credential",
+                 "authorization", "privatekey", "accesskey", "refreshkey"}
+
+    def visit(value: Any, depth: int) -> Any:
+        nonlocal nodes
+        nodes += 1
+        if nodes > 256 or depth > 8:
+            raise RepositoryError("Detail proposal melewati batas kompleksitas.")
+        if value is None or isinstance(value, (bool, int)):
+            return value
+        if isinstance(value, float):
+            if not math.isfinite(value):
+                raise RepositoryError("Angka proposal harus finite.")
+            return value
+        if isinstance(value, str):
+            if len(value) > 2048:
+                raise RepositoryError("Teks detail proposal terlalu panjang.")
+            return value
+        if isinstance(value, Mapping):
+            clean = {}
+            for key, item in value.items():
+                if not isinstance(key, str) or not key or len(key) > 80:
+                    raise RepositoryError("Nama field proposal tidak valid.")
+                normalized = re.sub(r"[^a-z0-9]", "", key.lower())
+                if normalized in forbidden or any(x in normalized for x in ("password", "secret", "credential", "privatekey")):
+                    raise RepositoryError("Field rahasia tidak boleh disimpan dalam proposal.")
+                clean[key] = visit(item, depth + 1)
+            return clean
+        if isinstance(value, (list, tuple)):
+            return [visit(item, depth + 1) for item in value]
+        raise RepositoryError("Detail proposal hanya boleh berisi data JSON sederhana.")
+
+    cleaned = visit(details, 0)
+    encoded = json.dumps(cleaned, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+    if len(encoded.encode("utf-8")) > 16_384:
+        raise RepositoryError("Ukuran detail proposal melebihi 16 KB.")
+    return cleaned
 
 
 class PersistentTransactionRepository:
@@ -98,9 +144,12 @@ class PersistentTransactionRepository:
         now: datetime,
         ttl_seconds: int = 300,
     ) -> dict[str, Any]:
+        if not isinstance(proposal_id, str) or not proposal_id.strip() or len(proposal_id) > 128:
+            raise RepositoryError("ID proposal tidak valid.")
+        safe_details = _validate_details(details)
         proposal = create_proposal(
             proposal_id=proposal_id,
-            details=details,
+            details=safe_details,
             data_ok=data_ok,
             risk_ok=risk_ok,
             audit_ok=audit_ok,
@@ -143,6 +192,10 @@ class PersistentTransactionRepository:
         actor: str,
         now: datetime,
     ) -> dict[str, Any]:
+        if not isinstance(actor, str) or not actor.strip() or len(actor) > 128:
+            raise RepositoryError("Identitas pengambil keputusan tidak valid.")
+        if not isinstance(expected_hash, str) or len(expected_hash) != 64:
+            raise RepositoryError("Hash proposal tidak valid.")
         db = self._connect()
         try:
             db.execute("BEGIN IMMEDIATE")
