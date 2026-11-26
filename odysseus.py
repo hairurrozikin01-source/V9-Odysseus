@@ -1,125 +1,168 @@
-"""Odysseus read-only audit layer for V9 reports.
-
-This first foundation is deterministic and explainable. It does not place orders,
-connect to wallets/brokers, or require credentials. It audits an existing V9 JSON
-report and produces risk flags for a human/operator to review.
-"""
+"""Odysseus read-only audit layer with fail-closed data validation."""
 import json
+import math
 import os
 from datetime import datetime, timezone
 
-VERSION = "ODYSSEUS-0.1.0"
+VERSION = "ODYSSEUS-0.2.0"
 DEFAULT_INPUT = "v9_scan_results.json"
 DEFAULT_OUTPUT = "odysseus_audit_report.json"
 
 
-def _finite_number(value):
+def _number(value):
+    if isinstance(value, bool):
+        return None
     try:
         number = float(value)
-        if number != number or abs(number) == float("inf"):
-            return None
-        return number
     except (TypeError, ValueError):
         return None
+    return number if math.isfinite(number) else None
 
 
 def audit_report(report):
     if not isinstance(report, dict):
         raise ValueError("V9 report must be a JSON object")
-    results = report.get("results", [])
+
+    results = report.get("results")
     failures = report.get("failures", [])
     if not isinstance(results, list) or not isinstance(failures, list):
         raise ValueError("V9 results and failures must be lists")
 
-    flags = []
+    system_flags = []
     audited = []
     mode = str(report.get("mode", "")).upper()
     if mode != "READ ONLY":
-        flags.append({
+        system_flags.append({
             "severity": "CRITICAL",
             "code": "UNEXPECTED_EXECUTION_MODE",
-            "message": "Mode laporan bukan READ ONLY; audit dihentikan untuk pemeriksaan manusia.",
+            "message": "Mode bukan READ ONLY; audit diblokir.",
         })
 
-    failed_count = report.get("failed_count", len(failures))
+    declared_failures = report.get("failed_count", len(failures))
     try:
-        failed_count = int(failed_count)
+        declared_failures = int(declared_failures)
     except (TypeError, ValueError):
-        failed_count = len(failures)
-    if failed_count:
-        flags.append({
+        declared_failures = -1
+    if declared_failures < 0 or declared_failures != len(failures):
+        system_flags.append({
+            "severity": "WARNING",
+            "code": "FAILURE_COUNT_MISMATCH",
+            "message": "Jumlah kegagalan laporan tidak konsisten dengan daftar failures.",
+            "listed_failures": len(failures),
+            "declared_failures": report.get("failed_count"),
+        })
+    if failures:
+        system_flags.append({
             "severity": "WARNING",
             "code": "ANALYSIS_FAILURES",
-            "message": "Sebagian simbol gagal dianalisis; jangan anggap hasil pemindaian lengkap.",
-            "count": failed_count,
+            "message": "Sebagian simbol gagal dianalisis; hasil pemindaian tidak lengkap.",
+            "count": len(failures),
         })
 
-    for item in results:
+    seen_symbols = set()
+    invalid_rows = 0
+    for index, item in enumerate(results):
         if not isinstance(item, dict):
+            invalid_rows += 1
+            system_flags.append({
+                "severity": "WARNING",
+                "code": "INVALID_SIGNAL_ROW",
+                "message": "Baris sinyal bukan objek dan dilewati.",
+                "row": index,
+            })
             continue
-        symbol = str(item.get("symbol", "UNKNOWN"))
-        score = _finite_number(item.get("score"))
-        rsi = _finite_number(item.get("rsi_15m"))
-        volume_ratio = _finite_number(item.get("volume_ratio_15m"))
-        trend_30m = item.get("trend_30m_bullish") is True
-        trend_1h = item.get("trend_1h_bullish") is True
-        local_flags = []
 
-        if score is None or score < 60:
-            local_flags.append("SCORE_BELOW_MINIMUM")
-        if rsi is not None and rsi >= 75:
-            local_flags.append("RSI_OVERBOUGHT")
-        if volume_ratio is None or volume_ratio < 1.5:
-            local_flags.append("VOLUME_CONFIRMATION_WEAK")
+        symbol = str(item.get("symbol", "")).strip().upper()
+        score = _number(item.get("score"))
+        rsi = _number(item.get("rsi_15m"))
+        volume_ratio = _number(item.get("volume_ratio_15m"))
+        trend_30m = item.get("trend_30m_bullish")
+        trend_1h = item.get("trend_1h_bullish")
+
+        row_errors = []
+        if not symbol:
+            row_errors.append("SYMBOL_MISSING")
+        elif symbol in seen_symbols:
+            row_errors.append("DUPLICATE_SYMBOL")
+        else:
+            seen_symbols.add(symbol)
+        if score is None or not 0 <= score <= 100:
+            row_errors.append("SCORE_INVALID")
+        if rsi is None or not 0 <= rsi <= 100:
+            row_errors.append("RSI_INVALID")
+        if volume_ratio is None or volume_ratio < 0:
+            row_errors.append("VOLUME_RATIO_INVALID")
+        if not isinstance(trend_30m, bool) or not isinstance(trend_1h, bool):
+            row_errors.append("TREND_CONFIRMATION_INVALID")
+
+        if row_errors:
+            invalid_rows += 1
+            audited.append({
+                "symbol": symbol or "UNKNOWN",
+                "severity": "CRITICAL",
+                "risk_flags": row_errors,
+                "human_review_required": True,
+                "decision": "BLOCKED",
+            })
+            continue
+
+        risk_flags = []
+        if score < 60:
+            risk_flags.append("SCORE_BELOW_MINIMUM")
+        if rsi >= 75:
+            risk_flags.append("RSI_OVERBOUGHT")
+        if volume_ratio < 1.5:
+            risk_flags.append("VOLUME_CONFIRMATION_WEAK")
         if not trend_30m or not trend_1h:
-            local_flags.append("MULTI_TIMEFRAME_TREND_NOT_CONFIRMED")
+            risk_flags.append("MULTI_TIMEFRAME_TREND_NOT_CONFIRMED")
 
-        severity = "INFO"
-        if "RSI_OVERBOUGHT" in local_flags:
-            severity = "WARNING"
-        if "MULTI_TIMEFRAME_TREND_NOT_CONFIRMED" in local_flags:
-            severity = "WARNING"
-
+        severity = "WARNING" if risk_flags else "INFO"
         audited.append({
             "symbol": symbol,
             "score": score,
+            "rsi_15m": rsi,
+            "volume_ratio_15m": volume_ratio,
             "severity": severity,
-            "risk_flags": local_flags,
-            "human_review_required": bool(local_flags),
-            "decision": "REVIEW" if local_flags else "MONITOR",
+            "risk_flags": risk_flags,
+            "human_review_required": bool(risk_flags),
+            "decision": "REVIEW" if risk_flags else "MONITOR",
         })
 
-    audited.sort(
-        key=lambda item: (
-            item["severity"] == "WARNING",
-            len(item["risk_flags"]),
-            item["score"] if item["score"] is not None else -1,
-        ),
-        reverse=True,
-    )
+    if invalid_rows:
+        system_flags.append({
+            "severity": "CRITICAL",
+            "code": "INVALID_SIGNAL_DATA",
+            "message": "Ada data sinyal tidak valid; hasil audit diblokir untuk tindakan lanjutan.",
+            "count": invalid_rows,
+        })
 
-    warning_count = sum(x["severity"] == "WARNING" for x in audited)
-    review_count = sum(x["human_review_required"] for x in audited)
+    critical = any(x["severity"] == "CRITICAL" for x in system_flags)
+    warnings = any(x["severity"] == "WARNING" for x in system_flags)
+    audit_status = "BLOCKED" if critical else ("CAUTION" if warnings else "CLEAR")
+
     recommendations = [
-        "Gunakan hasil ini sebagai audit informasi, bukan instruksi transaksi.",
-        "Periksa manual spread, likuiditas, berita, dan kondisi pasar sebelum mengambil keputusan.",
+        "Audit ini hanya informasi untuk pemeriksaan manusia, bukan instruksi transaksi.",
+        "Periksa spread, likuiditas, slippage, berita, dan risiko pasar secara terpisah.",
+        "Jangan membuka transaksi berdasarkan laporan ini saja.",
     ]
-    if not audited:
-        recommendations.insert(0, "Tidak ada sinyal V9 untuk diaudit pada pemindaian ini; tidak perlu memaksakan transaksi.")
-    if warning_count:
-        recommendations.insert(0, "Tinjau kandidat berstatus WARNING dan hindari mengejar harga yang sudah terlalu panas.")
+    if audit_status == "BLOCKED":
+        recommendations.insert(0, "Hentikan penggunaan hasil audit sampai masalah data atau mode diperbaiki.")
+    elif audit_status == "CAUTION":
+        recommendations.insert(0, "Tinjau kelengkapan pemindaian sebelum memakai hasilnya.")
 
     return {
         "version": VERSION,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "mode": "READ ONLY",
+        "audit_status": audit_status,
         "source_version": report.get("version"),
         "source_scan_time_utc": report.get("scan_time_utc"),
         "source_universe_count": report.get("universe_count"),
         "audited_signal_count": len(audited),
-        "warning_count": warning_count,
-        "review_count": review_count,
-        "system_flags": flags,
+        "warning_count": sum(x["severity"] == "WARNING" for x in audited),
+        "review_count": sum(x["human_review_required"] for x in audited),
+        "invalid_row_count": invalid_rows,
+        "system_flags": system_flags,
         "signals": audited,
         "recommendations": recommendations,
         "safety": {
@@ -142,9 +185,11 @@ def run(input_file=DEFAULT_INPUT, output_file=DEFAULT_OUTPUT):
         os.fsync(handle.fileno())
     os.replace(temporary, output_file)
     print("Odysseus", VERSION, "| READ ONLY")
+    print("Status audit:", audited["audit_status"])
     print("Sinyal diaudit:", audited["audited_signal_count"])
-    print("Peringatan:", audited["warning_count"])
+    print("Peringatan sinyal:", audited["warning_count"])
     print("Perlu ditinjau:", audited["review_count"])
+    print("Baris tidak valid:", audited["invalid_row_count"])
     print("Laporan:", output_file)
     print("Tidak ada order, wallet, atau akses broker.")
     return audited
