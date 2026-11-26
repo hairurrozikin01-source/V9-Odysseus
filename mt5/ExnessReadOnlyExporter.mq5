@@ -39,7 +39,12 @@ bool IsEligibleSymbol(string symbol, string &market_type,
       base_currency == "XPD")
       return false;
 
-   string currencies = "|USD|EUR|GBP|JPY|CHF|AUD|NZD|CAD|CNH|HKD|SGD|NOK|SEK|DKK|PLN|CZK|HUF|TRY|ZAR|MXN|THB|ILS|";
+   // Curated ISO fiat-currency allowlist. Broker symbol discovery still decides
+   // which actual pairs exist; non-currency CFDs and crypto tickers are excluded.
+   string currencies = "|USD|EUR|GBP|JPY|CHF|AUD|NZD|CAD|CNH|CNY|HKD|SGD|NOK|SEK|DKK|PLN|CZK|HUF|TRY|ZAR|MXN|THB|ILS|"
+                       "IDR|INR|KRW|MYR|PHP|TWD|VND|BRL|CLP|COP|PEN|ARS|"
+                       "SAR|AED|QAR|KWD|BHD|OMR|EGP|NGN|KES|GHS|PKR|"
+                       "ISK|RON|BGN|RSD|UAH|GEL|AMD|AZN|DZD|MAD|";
    if(base_currency == quote_currency ||
       StringFind(currencies, "|" + base_currency + "|") < 0 ||
       StringFind(currencies, "|" + quote_currency + "|") < 0)
@@ -147,7 +152,12 @@ void OnStart()
          continue;
 
       long trade_mode = SymbolInfoInteger(symbol, SYMBOL_TRADE_MODE);
-      bool trade_allowed = (trade_mode != SYMBOL_TRADE_MODE_DISABLED);
+      // CLOSEONLY and DISABLED symbols must not be treated as openable.
+      bool trade_allowed = (
+         trade_mode == SYMBOL_TRADE_MODE_FULL ||
+         trade_mode == SYMBOL_TRADE_MODE_LONGONLY ||
+         trade_mode == SYMBOL_TRADE_MODE_SHORTONLY
+      );
 
       if(!first_symbol)
          FileWriteString(handle, ",");
