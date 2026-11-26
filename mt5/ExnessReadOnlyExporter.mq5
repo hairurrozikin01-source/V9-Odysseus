@@ -51,7 +51,9 @@ string Number(double value, int digits)
 void OnStart()
 {
    string server = AccountInfoString(ACCOUNT_SERVER);
-   if(StringFind(StringToLower(server), "exness") < 0)
+   string lower_server = server;
+   StringToLower(lower_server);
+   if(StringFind(lower_server, "exness") < 0)
    {
       Print("V9 EXPORT BLOCKED: MT5 server does not identify as Exness.");
       return;
