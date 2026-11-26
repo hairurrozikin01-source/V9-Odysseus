@@ -49,3 +49,7 @@ A Windows MT5/MetaEditor environment is still required to compile and test the e
 6. Obtain explicit user approval for any separately designed execution feature.
 
 Until all gates pass, V9 remains READ ONLY. No live orders, automatic buying, or guaranteed returns are supported or promised.
+
+### MT5 export data handling
+
+The exporter includes symbol metadata, quotes, candle history, account currency, and broker server label. It does not intentionally export login credentials or account passwords, but this is still account-related market data. Do not commit a real `v9_mt5_readonly_snapshot.json` file to this public repository or paste it into public issues. Keep real exports local or in a private, access-controlled location. Never upload passwords, OTPs, investor credentials, API tokens, or account identifiers. The GitHub Actions workflow currently generates a `DATA_NOT_AVAILABLE` report unless an export file is explicitly supplied to the runner; it does not fetch files from the MT5 terminal or from the private data repository.
