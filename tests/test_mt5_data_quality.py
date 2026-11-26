@@ -1,7 +1,7 @@
 import unittest
 
 from mt5_data_quality import assess_snapshot_quality, assess_export_quality
-from mt5_quality_runner import build_quality_report
+from mt5_quality_report import build_report
 
 
 def make_snapshot():
@@ -82,7 +82,7 @@ class MT5DataQualityTests(unittest.TestCase):
             "account_currency": "USD", "mode": "READ ONLY",
             "exported_at_utc": "2026-11-26T09:00:10Z", "snapshots": [snapshot]
         }
-        report = build_quality_report(raw)
+        report = build_report(raw)
         self.assertEqual(report["snapshot_count"], 1)
         self.assertFalse(report["orders_enabled"])
         self.assertFalse(report["automated_trade_instruction"])
