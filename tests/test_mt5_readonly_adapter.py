@@ -1,5 +1,5 @@
 import unittest
-from mt5_readonly_adapter import normalize_snapshot, normalize_tick, normalize_candles, SnapshotValidationError
+from mt5_readonly_adapter import normalize_snapshot, normalize_export, normalize_tick, normalize_candles, SnapshotValidationError
 
 
 def valid_snapshot():
@@ -70,6 +70,44 @@ class MT5ReadOnlyAdapterTests(unittest.TestCase):
         data["symbol_metadata"]["tick_value"] = 0
         with self.assertRaises(SnapshotValidationError):
             normalize_snapshot(data)
+
+
+    def test_valid_multi_symbol_export(self):
+        first = valid_snapshot()
+        for key in ("broker", "account_type", "platform", "mode"):
+            first.pop(key)
+        export = {
+            "broker": "Exness", "account_type": "Raw Spread",
+            "platform": "MT5", "mode": "READ ONLY",
+            "exported_at_utc": "2026-11-26T09:00:00Z",
+            "snapshots": [first]
+        }
+        result = normalize_export(export)
+        self.assertEqual(result["snapshot_count"], 1)
+        self.assertFalse(result["orders_enabled"])
+
+    def test_rejects_duplicate_symbols_in_export(self):
+        first = valid_snapshot()
+        for key in ("broker", "account_type", "platform", "mode"):
+            first.pop(key)
+        export = {
+            "broker": "Exness", "account_type": "Raw Spread",
+            "platform": "MT5", "mode": "READ ONLY",
+            "exported_at_utc": "2026-11-26T09:00:00Z",
+            "snapshots": [first, first]
+        }
+        with self.assertRaises(SnapshotValidationError):
+            normalize_export(export)
+
+    def test_rejects_empty_export(self):
+        export = {
+            "broker": "Exness", "account_type": "Raw Spread",
+            "platform": "MT5", "mode": "READ ONLY",
+            "exported_at_utc": "2026-11-26T09:00:00Z",
+            "snapshots": []
+        }
+        with self.assertRaises(SnapshotValidationError):
+            normalize_export(export)
 
     def test_rejects_symbol_mismatch(self):
         data = valid_snapshot()
