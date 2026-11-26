@@ -31,7 +31,7 @@ MIN_VOLUME_RATIO = 1.5
 MIN_TRADE_RATIO = 1.3
 
 REQUEST_DELAY_SECONDS = 0.12
-MAX_SYMBOLS = 0
+MAX_SYMBOLS = 100  # Liquidity-ranked cap to keep scheduled scans within runtime limits
 
 OUTPUT_FILE = "v9_scan_results.json"
 HISTORY_FILE = ".v9-state/v9_signal_history.json"
