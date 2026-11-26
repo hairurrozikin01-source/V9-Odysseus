@@ -174,3 +174,56 @@ def normalize_snapshot(raw):
             "A validated snapshot is not a trading signal or risk approval."
         ],
     }
+
+
+
+def normalize_export(raw):
+    """Validate a complete read-only export containing multiple MT5 symbols."""
+    if not isinstance(raw, dict):
+        raise SnapshotValidationError("export must be an object")
+    if raw.get("broker") != "Exness":
+        raise SnapshotValidationError("export broker must be Exness")
+    if raw.get("platform") != "MT5":
+        raise SnapshotValidationError("export platform must be MT5")
+    if raw.get("account_type") != "Raw Spread":
+        raise SnapshotValidationError("export account_type must be Raw Spread")
+    if raw.get("mode") != MODE:
+        raise SnapshotValidationError("export mode must be READ ONLY")
+    exported_at = _utc_timestamp(raw.get("exported_at_utc"))
+    snapshots = raw.get("snapshots")
+    if not isinstance(snapshots, list) or not snapshots:
+        raise SnapshotValidationError("export snapshots must be a non-empty list")
+
+    normalized = []
+    seen = set()
+    for index, item in enumerate(snapshots):
+        try:
+            snapshot_input = dict(item)
+            snapshot_input.update({
+                "broker": "Exness",
+                "platform": "MT5",
+                "account_type": "Raw Spread",
+                "mode": MODE,
+            })
+            result = normalize_snapshot(snapshot_input)
+        except (TypeError, SnapshotValidationError) as exc:
+            raise SnapshotValidationError(f"snapshot {index}: {exc}") from exc
+        if result["symbol"] in seen:
+            raise SnapshotValidationError(f"duplicate symbol: {result['symbol']}")
+        seen.add(result["symbol"])
+        normalized.append(result)
+
+    return {
+        "version": VERSION,
+        "broker": "Exness",
+        "account_type": "Raw Spread",
+        "platform": "MT5",
+        "mode": MODE,
+        "exported_at_utc": exported_at,
+        "snapshot_count": len(normalized),
+        "snapshots": normalized,
+        "orders_enabled": False,
+        "wallet_access": False,
+        "broker_credentials_required": False,
+        "automated_trade_instruction": False,
+    }
