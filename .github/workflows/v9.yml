@@ -4,7 +4,8 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - v9.4.6-development\n      - v9.5-odysseus-development
+      - v9.4.6-development
+      - v9.5-odysseus-development
   schedule:
     - cron: "*/15 * * * *"
 
@@ -34,7 +35,7 @@ jobs:
           restore-keys: |
             v9-state-${{ runner.os }}-
 
-      - name: Test V9 and SHIB Hunter logic
+      - name: Test V9, SHIB Hunter, and Odysseus
         run: python -m unittest discover -s tests -v
 
       - name: Run V9
@@ -53,12 +54,13 @@ jobs:
           path: .v9-state/
           key: v9-state-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
 
-      - name: Upload V9 and SHIB Hunter reports
+      - name: Upload V9, SHIB Hunter, and Odysseus reports
         uses: actions/upload-artifact@v4
         with:
           name: v9-odysseus-reports-${{ github.run_id }}
           path: |
             v9_scan_results.json
-            shib_hunter_results.json\n            odysseus_audit_report.json
+            shib_hunter_results.json
+            odysseus_audit_report.json
           if-no-files-found: warn
           retention-days: 7
