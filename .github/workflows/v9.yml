@@ -6,6 +6,7 @@ on:
     branches:
       - v9.4.6-development
       - v9.5-odysseus-development
+      - v9.5.1-risk-validation
   schedule:
     - cron: "*/15 * * * *"
 
