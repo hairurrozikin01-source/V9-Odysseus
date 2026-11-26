@@ -93,6 +93,21 @@ class PersistentTransactionRepositoryTests(unittest.TestCase):
         self.assertEqual(events[0]["sequence"], 1)
         self.assertEqual(events[0]["previous_hash"], "0" * 64)
 
+    def test_nested_secret_fields_are_rejected_before_persistence(self):
+        with self.assertRaises(RepositoryError):
+            self.create(details={"symbol": "XAUUSD", "metadata": {"api_key": "do-not-store"}})
+        self.assertEqual(self.repo.verify_audit()["count"], 0)
+
+    def test_oversized_payload_is_rejected(self):
+        with self.assertRaises(RepositoryError):
+            self.create(details={"symbol": "XAUUSD", "notes": "x" * 17000})
+        self.assertEqual(self.repo.verify_audit()["count"], 0)
+
+    def test_non_finite_numbers_are_rejected(self):
+        with self.assertRaises(RepositoryError):
+            self.create(details={"symbol": "XAUUSD", "risk": float("nan")})
+        self.assertEqual(self.repo.verify_audit()["count"], 0)
+
     def test_duplicate_proposal_id_does_not_overwrite_existing(self):
         first = self.create()
         with self.assertRaises(Exception):
