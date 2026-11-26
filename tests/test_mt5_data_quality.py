@@ -1,6 +1,6 @@
 import unittest
 
-from mt5_data_quality import assess_snapshot_quality, assess_export_quality
+from mt5_data_quality import assess_snapshot_quality, assess_export_quality\nfrom mt5_quality_runner import build_quality_report
 
 
 def make_snapshot():
@@ -66,6 +66,25 @@ class MT5DataQualityTests(unittest.TestCase):
         result = assess_export_quality(export)
         self.assertEqual(result["snapshot_count"], 2)
         self.assertFalse(result["automated_trade_instruction"])
+
+    def test_runner_normalizes_raw_export_before_quality_assessment(self):
+        snapshot = make_snapshot()
+        snapshot["symbol_metadata"].update({
+            "symbol": "XAUUSD", "market_type": "METAL",
+            "base_currency": "XAU", "quote_currency": "USD",
+            "tick_size": 0.01, "tick_value": 1.0,
+            "tick_value_currency": "USD", "contract_size": 100.0,
+            "volume_min": 0.01, "volume_max": 200.0, "volume_step": 0.01
+        })
+        raw = {
+            "broker": "Exness", "platform": "MT5", "account_type": "Raw Spread",
+            "account_currency": "USD", "mode": "READ ONLY",
+            "exported_at_utc": "2026-11-26T09:00:10Z", "snapshots": [snapshot]
+        }
+        report = build_quality_report(raw)
+        self.assertEqual(report["snapshot_count"], 1)
+        self.assertFalse(report["orders_enabled"])
+        self.assertFalse(report["automated_trade_instruction"])
 
     def test_invalid_export_rejected(self):
         with self.assertRaises(ValueError):
