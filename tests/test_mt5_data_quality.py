@@ -1,6 +1,7 @@
 import unittest
 
-from mt5_data_quality import assess_snapshot_quality, assess_export_quality\nfrom mt5_quality_runner import build_quality_report
+from mt5_data_quality import assess_snapshot_quality, assess_export_quality
+from mt5_quality_runner import build_quality_report
 
 
 def make_snapshot():
