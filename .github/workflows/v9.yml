@@ -72,6 +72,7 @@ jobs:
             shib_hunter_results.json
             odysseus_audit_report.json
             v9_risk_monitor_report.json
+            mt5_data_quality_report.json
             v9_dashboard.html
           if-no-files-found: warn
           retention-days: 7
