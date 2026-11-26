@@ -70,6 +70,13 @@ def evaluate_candidate_pipeline(
         if str(account.get("currency", "")).upper() != account_currency:
             raise ValueError("account currency must match the validated MT5 export")
         equity = account.get("equity")
+        position_id = candidate.get("position_id")
+        if not isinstance(position_id, str) or not position_id.strip():
+            raise ValueError("candidate.position_id is required")
+        exposures = candidate.get("currency_exposure")
+        if not isinstance(exposures, dict) or not exposures:
+            raise ValueError("candidate.currency_exposure must be a non-empty object")
+
         analysis = analyze_snapshot(snapshot)
         side = str(candidate.get("side", "")).upper()
         expected_status = "BULLISH_WATCH" if side == "BUY" else (
@@ -84,13 +91,6 @@ def evaluate_candidate_pipeline(
                 symbol=symbol,
                 analysis=analysis,
             )
-
-        position_id = candidate.get("position_id")
-        if not isinstance(position_id, str) or not position_id.strip():
-            raise ValueError("candidate.position_id is required")
-        exposures = candidate.get("currency_exposure")
-        if not isinstance(exposures, dict) or not exposures:
-            raise ValueError("candidate.currency_exposure must be a non-empty object")
 
         sizing = calculate_position_risk(
             symbol_metadata=snapshot["symbol_metadata"],
