@@ -44,6 +44,9 @@ jobs:
         id: shib-hunter
         run: python shib_hunter.py
 
+      - name: Run Odysseus read-only audit
+        run: python odysseus.py
+
       - name: Save persistent signal history
         uses: actions/cache/save@v4
         with:
