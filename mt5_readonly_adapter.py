@@ -9,6 +9,8 @@ import math
 VERSION = "V9-MT5-READONLY-0.1.0"
 MODE = "READ ONLY"
 SUPPORTED_MARKET_TYPES = {"FOREX", "METAL"}
+MAX_EXPORT_TICK_AGE_SECONDS = 120
+FUTURE_TICK_TOLERANCE_SECONDS = 5
 
 
 class SnapshotValidationError(ValueError):
@@ -198,6 +200,8 @@ def normalize_export(raw):
     seen = set()
     for index, item in enumerate(snapshots):
         try:
+            if not isinstance(item, dict):
+                raise SnapshotValidationError("snapshot must be an object")
             snapshot_input = dict(item)
             snapshot_input.update({
                 "broker": "Exness",
@@ -206,6 +210,19 @@ def normalize_export(raw):
                 "mode": MODE,
             })
             result = normalize_snapshot(snapshot_input)
+            exported_time = datetime.fromisoformat(exported_at.replace("Z", "+00:00"))
+            tick_time = datetime.fromisoformat(
+                result["tick"]["timestamp_utc"].replace("Z", "+00:00")
+            )
+            tick_age = (exported_time - tick_time).total_seconds()
+            if tick_age < -FUTURE_TICK_TOLERANCE_SECONDS:
+                raise SnapshotValidationError("tick timestamp is later than export time")
+            if tick_age > MAX_EXPORT_TICK_AGE_SECONDS:
+                raise SnapshotValidationError(
+                    "tick is stale: age exceeds {} seconds".format(
+                        MAX_EXPORT_TICK_AGE_SECONDS
+                    )
+                )
         except (TypeError, SnapshotValidationError) as exc:
             raise SnapshotValidationError(f"snapshot {index}: {exc}") from exc
         if result["symbol"] in seen:
