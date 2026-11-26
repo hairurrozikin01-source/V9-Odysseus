@@ -10,7 +10,7 @@ on:
 
 concurrency:
   group: v9-odysseus-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   v9-monitor:
