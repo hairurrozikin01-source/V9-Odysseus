@@ -15,7 +15,7 @@ concurrency:
 jobs:
   v9-monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout V9
@@ -34,11 +34,16 @@ jobs:
           restore-keys: |
             v9-state-${{ runner.os }}-
 
-      - name: Test V9 state and performance logic
+      - name: Test V9 and SHIB Hunter logic
         run: python -m unittest discover -s tests -v
 
       - name: Run V9
         run: python main.py
+
+      - name: Run SHIB Hunter multi-chain radar
+        id: shib-hunter
+        continue-on-error: true
+        run: python shib_hunter.py
 
       - name: Save persistent signal history
         uses: actions/cache/save@v4
@@ -46,10 +51,12 @@ jobs:
           path: .v9-state/
           key: v9-state-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
 
-      - name: Upload scan report
+      - name: Upload V9 and SHIB Hunter reports
         uses: actions/upload-artifact@v4
         with:
-          name: v9-scan-report-${{ github.run_id }}
-          path: v9_scan_results.json
-          if-no-files-found: error
+          name: v9-odysseus-reports-${{ github.run_id }}
+          path: |
+            v9_scan_results.json
+            shib_hunter_results.json
+          if-no-files-found: warn
           retention-days: 7
