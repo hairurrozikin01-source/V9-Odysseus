@@ -153,5 +153,24 @@ class MT5ReadOnlyAdapterTests(unittest.TestCase):
             normalize_snapshot(data)
 
 
+    def test_rejects_metal_not_identified_as_gold(self):
+        data = valid_snapshot()
+        data["symbol_metadata"]["base_currency"] = "XAG"
+        with self.assertRaises(SnapshotValidationError):
+            normalize_snapshot(data)
+
+    def test_rejects_gold_misclassified_as_forex(self):
+        data = valid_snapshot()
+        data["symbol_metadata"]["market_type"] = "FOREX"
+        with self.assertRaises(SnapshotValidationError):
+            normalize_snapshot(data)
+
+    def test_rejects_volume_min_not_aligned_to_step(self):
+        data = valid_snapshot()
+        data["symbol_metadata"]["volume_min"] = 0.015
+        with self.assertRaises(SnapshotValidationError):
+            normalize_snapshot(data)
+
+
 if __name__ == "__main__":
     unittest.main()
