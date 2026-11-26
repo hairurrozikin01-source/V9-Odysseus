@@ -46,6 +46,7 @@ def calculate_position_risk(
     stop_loss_price,
     equity,
     risk_pct,
+    account_currency,
     commission_per_lot_round_turn=0.0,
     slippage_ticks_per_lot=0.0,
 ):
@@ -60,6 +61,13 @@ def calculate_position_risk(
         raise RiskCalculationError("symbol metadata must be marked READ ONLY")
     if symbol_metadata.get("source") != "MT5":
         raise RiskCalculationError("symbol metadata source must be MT5")
+    if not isinstance(account_currency, str) or not account_currency.strip():
+        raise RiskCalculationError("account_currency is required")
+    tick_value_currency = symbol_metadata.get("tick_value_currency")
+    if not isinstance(tick_value_currency, str) or not tick_value_currency.strip():
+        raise RiskCalculationError("tick_value_currency is required")
+    if tick_value_currency.upper() != account_currency.upper():
+        raise RiskCalculationError("tick_value_currency must match account_currency")
 
     side = str(side).upper()
     if side not in ("BUY", "SELL"):
@@ -144,6 +152,7 @@ def calculate_position_risk(
         "stop_distance_ticks": round(stop_ticks, 8),
         "tick_size": tick_size,
         "tick_value_per_lot_account_currency": tick_value,
+        "account_currency": account_currency.upper(),
         "price_risk_per_lot_account_currency": round(price_risk_per_lot, 8),
         "commission_per_lot_round_turn_account_currency": commission,
         "slippage_cost_per_lot_account_currency": round(slippage_cost_per_lot, 8),
