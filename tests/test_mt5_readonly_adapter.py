@@ -6,6 +6,7 @@ def valid_snapshot():
     return {
         "broker": "Exness",
         "account_type": "Raw Spread",
+        "account_currency": "USD",
         "platform": "MT5",
         "mode": "READ ONLY",
         "symbol": "XAUUSD",
@@ -13,7 +14,7 @@ def valid_snapshot():
             "symbol": "XAUUSD", "market_type": "METAL",
             "base_currency": "XAU", "quote_currency": "USD",
             "digits": 2, "point": 0.01, "tick_size": 0.01,
-            "tick_value": 1.0, "contract_size": 100.0,
+            "tick_value": 1.0, "tick_value_currency": "USD", "contract_size": 100.0,
             "volume_min": 0.01, "volume_max": 200.0,
             "volume_step": 0.01, "trade_allowed": True
         },
@@ -78,7 +79,7 @@ class MT5ReadOnlyAdapterTests(unittest.TestCase):
             first.pop(key)
         export = {
             "broker": "Exness", "account_type": "Raw Spread",
-            "platform": "MT5", "mode": "READ ONLY",
+            "account_currency": "USD", "platform": "MT5", "mode": "READ ONLY",
             "exported_at_utc": "2026-11-26T09:00:00Z",
             "snapshots": [first]
         }
