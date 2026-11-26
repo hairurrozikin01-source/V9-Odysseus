@@ -42,7 +42,6 @@ jobs:
 
       - name: Run SHIB Hunter multi-chain radar
         id: shib-hunter
-        continue-on-error: true
         run: python shib_hunter.py
 
       - name: Save persistent signal history
