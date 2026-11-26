@@ -88,6 +88,7 @@ void OnStart()
 
    FileWriteString(handle, "{\"broker\":\"Exness\",");
    FileWriteString(handle, "\"account_type\":\"Raw Spread\",");
+   FileWriteString(handle, "\"account_currency\":\"" + AccountInfoString(ACCOUNT_CURRENCY) + "\",");
    FileWriteString(handle, "\"platform\":\"MT5\",");
    FileWriteString(handle, "\"mode\":\"READ ONLY\",");
    FileWriteString(handle, "\"server\":\"");
@@ -153,6 +154,7 @@ void OnStart()
       FileWriteString(handle, "\"point\":" + Number(point, 10) + ",");
       FileWriteString(handle, "\"tick_size\":" + Number(tick_size, 10) + ",");
       FileWriteString(handle, "\"tick_value\":" + Number(tick_value, 8) + ",");
+      FileWriteString(handle, "\"tick_value_currency\":\"" + AccountInfoString(ACCOUNT_CURRENCY) + "\",");
       FileWriteString(handle, "\"contract_size\":" + Number(contract_size, 4) + ",");
       FileWriteString(handle, "\"volume_min\":" + Number(volume_min, 4) + ",");
       FileWriteString(handle, "\"volume_max\":" + Number(volume_max, 4) + ",");
