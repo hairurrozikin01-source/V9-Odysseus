@@ -257,6 +257,23 @@ class PersistentTransactionRepository:
         finally:
             db.close()
 
+    def list_proposals(self, *, status: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+        """Return newest proposals with a bounded page size."""
+        if not isinstance(limit, int) or limit < 1 or limit > 100:
+            raise RepositoryError("Limit harus antara 1 dan 100.")
+        with self._connect() as db:
+            if status:
+                rows = db.execute(
+                    "SELECT proposal_json FROM proposals WHERE status = ? ORDER BY updated_at DESC LIMIT ?",
+                    (status, limit),
+                ).fetchall()
+            else:
+                rows = db.execute(
+                    "SELECT proposal_json FROM proposals ORDER BY updated_at DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+        return [json.loads(row["proposal_json"]) for row in rows]
+
     def list_audit_events(self) -> list[dict[str, Any]]:
         with self._connect() as db:
             rows = db.execute(
