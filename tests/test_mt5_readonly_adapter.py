@@ -99,6 +99,42 @@ class MT5ReadOnlyAdapterTests(unittest.TestCase):
         with self.assertRaises(SnapshotValidationError):
             normalize_export(export)
 
+    def test_rejects_stale_tick_in_export(self):
+        first = valid_snapshot()
+        for key in ("broker", "account_type", "platform", "mode"):
+            first.pop(key)
+        export = {
+            "broker": "Exness", "account_type": "Raw Spread",
+            "platform": "MT5", "mode": "READ ONLY",
+            "exported_at_utc": "2026-11-26T09:03:00Z",
+            "snapshots": [first]
+        }
+        with self.assertRaises(SnapshotValidationError):
+            normalize_export(export)
+
+    def test_rejects_tick_from_future(self):
+        first = valid_snapshot()
+        for key in ("broker", "account_type", "platform", "mode"):
+            first.pop(key)
+        export = {
+            "broker": "Exness", "account_type": "Raw Spread",
+            "platform": "MT5", "mode": "READ ONLY",
+            "exported_at_utc": "2026-11-26T08:59:00Z",
+            "snapshots": [first]
+        }
+        with self.assertRaises(SnapshotValidationError):
+            normalize_export(export)
+
+    def test_rejects_non_object_snapshot(self):
+        export = {
+            "broker": "Exness", "account_type": "Raw Spread",
+            "platform": "MT5", "mode": "READ ONLY",
+            "exported_at_utc": "2026-11-26T09:00:00Z",
+            "snapshots": ["invalid"]
+        }
+        with self.assertRaises(SnapshotValidationError):
+            normalize_export(export)
+
     def test_rejects_empty_export(self):
         export = {
             "broker": "Exness", "account_type": "Raw Spread",
