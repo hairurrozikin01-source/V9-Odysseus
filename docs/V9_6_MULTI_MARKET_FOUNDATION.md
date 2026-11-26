@@ -98,13 +98,13 @@ The gate fails closed for missing or malformed required inputs and blocks when a
 
 The branch now includes `risk_calculator.py`. It estimates a theoretical volume from entry price, stop-loss price, account equity, requested risk percentage, and MT5 tick/volume specifications. It floors volume to the broker volume step, respects the broker maximum, and blocks when the calculated volume is below the broker minimum. Optional round-turn commission and slippage allowances reduce the theoretical volume.
 
-Critical assumption: the supplied MT5 `tick_value` must be confirmed in the account deposit currency for the exact symbol and account. Commission, slippage, swap, spread changes, gaps, conversion changes, and execution conditions may cause realized loss to exceed the estimate. The calculator does not calculate margin, read live account equity, derive tick value, convert currencies, or place orders. It always returns READ ONLY output and requires human review.
+The exporter now includes the MT5 account deposit currency and labels the exported tick value with that currency. The normalizer and calculator reject missing or mismatched currency labels. This metadata assertion still requires verification against a real Exness demo terminal and the broker's symbol specification. Commission, slippage, swap, spread changes, gaps, conversion changes, and execution conditions may cause realized loss to exceed the estimate. The calculator does not calculate margin, read live account equity, derive tick value, convert currencies, or place orders. It always returns READ ONLY output and requires human review.
 
 ## Current implementation status
 
 - Existing V9 crypto engine and SHIB Hunter remain separate from the MT5 market adapter.
 - MT5 normalized snapshot validation and a read-only technical watch analyzer are implemented on the V9.6 development branch; actual MT5 data capture and MetaEditor compilation remain unverified.
 - A read-only portfolio risk policy gate and unit tests are added; it consumes supplied risk/exposure amounts and is not yet connected to live account or position data.
-- A read-only MT5 position risk calculator and unit tests are added; actual Exness tick-value currency, commissions, and symbol-specific volume constraints still require demo-terminal verification.
+- A read-only MT5 position risk calculator and unit tests are added. The MQL5 exporter now labels tick value with account currency; the adapter and calculator reject currency mismatches. Actual Exness metadata, commission, and symbol-specific volume constraints still require demo-terminal verification.
 - Odysseus and Risk Monitor are rule-based/read-only foundations, not a fully autonomous AI agent or complete portfolio risk platform.
 - V9.5.2 Risk Monitor CI passed in GitHub Actions Run #52. That confirms the tested software workflow, not trading performance or live readiness.
