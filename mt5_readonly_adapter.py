@@ -87,6 +87,23 @@ def normalize_symbol(raw):
         raise SnapshotValidationError("base_currency and quote_currency are required")
     if not normalized["tick_value_currency"]:
         raise SnapshotValidationError("tick_value_currency is required")
+
+    # Cross-check broker metadata so malformed or misclassified instruments
+    # cannot flow into downstream strategy and risk calculations.
+    if len(normalized["base_currency"]) != 3 or len(normalized["quote_currency"]) != 3:
+        raise SnapshotValidationError("base_currency and quote_currency must be 3-letter codes")
+    if normalized["market_type"] == "METAL":
+        if normalized["base_currency"] != "XAU":
+            raise SnapshotValidationError("METAL snapshots must identify Gold (XAU) as base currency")
+    elif normalized["base_currency"] == "XAU" or normalized["base_currency"] == normalized["quote_currency"]:
+        raise SnapshotValidationError("FOREX snapshots must have distinct non-Gold currencies")
+
+    if volume_step > volume_max:
+        raise SnapshotValidationError("volume_step cannot exceed volume_max")
+    min_steps = volume_min / volume_step
+    if abs(min_steps - round(min_steps)) > 1e-8:
+        raise SnapshotValidationError("volume_min must align with volume_step")
+
     return normalized
 
 
