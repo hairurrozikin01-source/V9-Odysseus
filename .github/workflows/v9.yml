@@ -54,6 +54,9 @@ jobs:
       - name: Run V9 read-only risk monitor
         run: python risk_monitor.py
 
+      - name: Build MT5 data quality report
+        run: python mt5_quality_runner.py
+
       - name: Build mobile dashboard
         run: python dashboard.py
 
