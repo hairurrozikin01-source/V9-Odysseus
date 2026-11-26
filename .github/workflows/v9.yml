@@ -9,7 +9,7 @@ on:
     - cron: "*/15 * * * *"
 
 concurrency:
-  group: v9-odysseus-\${{ github.ref }}
+  group: v9-odysseus-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -30,9 +30,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .v9-state/
-          key: v9-state-\${{ runner.os }}-\${{ github.run_id }}-\${{ github.run_attempt }}
+          key: v9-state-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            v9-state-\${{ runner.os }}-
+            v9-state-${{ runner.os }}-
 
       - name: Test V9 state and performance logic
         run: python -m unittest discover -s tests -v
@@ -44,12 +44,12 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .v9-state/
-          key: v9-state-\${{ runner.os }}-\${{ github.run_id }}-\${{ github.run_attempt }}
+          key: v9-state-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Upload scan report
         uses: actions/upload-artifact@v4
         with:
-          name: v9-scan-report-\${{ github.run_id }}
+          name: v9-scan-report-${{ github.run_id }}
           path: v9_scan_results.json
           if-no-files-found: error
           retention-days: 7
