@@ -83,7 +83,7 @@ def assess_snapshot_quality(snapshot, exported_at_utc,
 
     for label, price in (("bid", bid), ("ask", ask), ("last_close", last_close)):
         rounded = round(price, digits)
-        if abs(price - rounded) > point * 0.51:
+        if abs(price - rounded) > max(point * 1e-6, 1e-10):
             blocked = True
             findings.append({
                 "severity": "BLOCK",
