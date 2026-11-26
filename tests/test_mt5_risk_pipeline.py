@@ -8,7 +8,7 @@ def make_export():
     close = 2000.0
     for index in range(40):
         if index > 0:
-            close += -0.1 if index % 4 == 0 else 0.2
+            close += -0.3 if index % 4 == 0 else 0.2
         candles.append({
             "timestamp_utc": "2026-11-26T10:{:02d}:00Z".format(index),
             "open": close - 0.1,
