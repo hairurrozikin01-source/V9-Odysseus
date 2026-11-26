@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - v9.4.6-development
+      - v9.4.6-development\n      - v9.5-odysseus-development
   schedule:
     - cron: "*/15 * * * *"
 
@@ -56,6 +56,6 @@ jobs:
           name: v9-odysseus-reports-${{ github.run_id }}
           path: |
             v9_scan_results.json
-            shib_hunter_results.json
+            shib_hunter_results.json\n            odysseus_audit_report.json
           if-no-files-found: warn
           retention-days: 7
