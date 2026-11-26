@@ -88,9 +88,16 @@ The development branch now includes `mt5_strategy.py`, a technical-context analy
 
 This is a watch-list foundation only. It does not produce an executable entry, stop-loss, take-profit, lot size, portfolio risk approval, or order. Its default spread filter is a configurable engineering threshold and must be calibrated with broker demo data before any strategy evaluation. The analyzer is covered by unit tests and is automatically included by unittest discovery.
 
+## Read-only portfolio risk policy gate
+
+The branch now includes `portfolio_risk_gate.py`. It evaluates externally supplied account equity, daily loss, per-position risk amounts, and currency exposure amounts against configurable policy limits. Conservative defaults are 1% maximum risk per position, 3% daily loss, 5% combined open risk, and 3% currency concentration.
+
+The gate fails closed for missing or malformed required inputs and blocks when a configured threshold is reached or exceeded. It deliberately does not calculate lot size, pip value, conversion rates, margin, or stop distance; those require a separately validated broker-aware calculator. It does not connect to Exness, read live positions, approve trades, or allow new risk. Even a WITHIN_LIMITS result is informational only.
+
 ## Current implementation status
 
 - Existing V9 crypto engine and SHIB Hunter remain separate from the MT5 market adapter.
 - MT5 normalized snapshot validation and a read-only technical watch analyzer are implemented on the V9.6 development branch; actual MT5 data capture and MetaEditor compilation remain unverified.
+- A read-only portfolio risk policy gate and unit tests are added; it consumes supplied risk/exposure amounts and is not yet connected to live account or position data.
 - Odysseus and Risk Monitor are rule-based/read-only foundations, not a fully autonomous AI agent or complete portfolio risk platform.
 - V9.5.2 Risk Monitor CI passed in GitHub Actions Run #52. That confirms the tested software workflow, not trading performance or live readiness.
