@@ -62,7 +62,7 @@ def run(input_file=INPUT_FILE, output_file=OUTPUT_FILE):
     temporary = output_file + ".tmp"
     with open(temporary, "w", encoding="utf-8") as handle:
         json.dump(report, handle, indent=2, ensure_ascii=False)
-        handle.write("\\n")
+        handle.write("\n")
         handle.flush()
         os.fsync(handle.fileno())
     os.replace(temporary, output_file)
