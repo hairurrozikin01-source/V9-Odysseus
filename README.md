@@ -35,7 +35,7 @@ The dashboard reflects the data available when that workflow ran. A successful A
 
 ## Exness MT5 integration status
 
-The MQL5 exporter in `mt5/ExnessReadOnlyExporter.mq5` is intended to export a read-only snapshot from a Windows MT5 terminal. The Python adapter validates the exported JSON. GitHub Actions on Linux cannot compile or run the MQL5 exporter and does not connect to an MT5 terminal.
+The MQL5 exporter in `mt5/ExnessReadOnlyExporter.mq5` is intended to export a read-only snapshot named `v9_mt5_readonly_snapshot.json` from a Windows MT5 terminal. `mt5_quality_report.py` validates and scores the export before the dashboard is built. If no export file is present in a workflow run, the report explicitly shows `DATA_NOT_AVAILABLE`; it never invents market data. The Python adapter validates the exported JSON. GitHub Actions on Linux cannot compile or run the MQL5 exporter and does not connect to an MT5 terminal.
 
 A Windows MT5/MetaEditor environment is still required to compile and test the exporter against an Exness demo account. Do not share MT5 passwords, investor passwords, API keys, or account secrets in GitHub issues or chat.
 
