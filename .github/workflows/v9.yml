@@ -7,6 +7,7 @@ on:
       - v9.4.6-development
       - v9.5-odysseus-development
       - v9.5.1-risk-validation
+      - v9.5.2-risk-monitor
   schedule:
     - cron: "*/15 * * * *"
 
@@ -36,7 +37,7 @@ jobs:
           restore-keys: |
             v9-state-${{ runner.os }}-
 
-      - name: Test V9, SHIB Hunter, and Odysseus
+      - name: Test V9, SHIB Hunter, Odysseus, and Risk Monitor
         run: python -m unittest discover -s tests -v
 
       - name: Run V9
@@ -49,13 +50,16 @@ jobs:
       - name: Run Odysseus read-only audit
         run: python odysseus.py
 
+      - name: Run V9 read-only risk monitor
+        run: python risk_monitor.py
+
       - name: Save persistent signal history
         uses: actions/cache/save@v4
         with:
           path: .v9-state/
           key: v9-state-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
 
-      - name: Upload V9, SHIB Hunter, and Odysseus reports
+      - name: Upload V9, SHIB Hunter, Odysseus, and risk reports
         uses: actions/upload-artifact@v4
         with:
           name: v9-odysseus-reports-${{ github.run_id }}
@@ -63,5 +67,6 @@ jobs:
             v9_scan_results.json
             shib_hunter_results.json
             odysseus_audit_report.json
+            v9_risk_monitor_report.json
           if-no-files-found: warn
           retention-days: 7
