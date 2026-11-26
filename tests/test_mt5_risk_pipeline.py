@@ -5,8 +5,10 @@ from mt5_risk_pipeline import evaluate_candidate_pipeline
 
 def make_export():
     candles = []
+    close = 2000.0
     for index in range(40):
-        close = 2000.0 + index * 0.5
+        if index > 0:
+            close += -0.1 if index % 4 == 0 else 0.2
         candles.append({
             "timestamp_utc": "2026-11-26T10:{:02d}:00Z".format(index),
             "open": close - 0.1,
@@ -40,8 +42,8 @@ def make_export():
                 "volume_step": 0.01,
             },
             "tick": {
-                "bid": 2020.0,
-                "ask": 2020.1,
+                "bid": 2005.7,
+                "ask": 2005.71,
                 "timestamp_utc": "2026-11-26T10:59:00Z",
             },
             "candles": candles,
@@ -54,8 +56,8 @@ def make_candidate(**overrides):
         "position_id": "candidate-1",
         "symbol": "XAUUSD",
         "side": "BUY",
-        "entry_price": 2020.1,
-        "stop_loss_price": 2019.1,
+        "entry_price": 2005.71,
+        "stop_loss_price": 2004.71,
         "risk_pct": 0.5,
         "currency_exposure": {"USD": 10},
     }
