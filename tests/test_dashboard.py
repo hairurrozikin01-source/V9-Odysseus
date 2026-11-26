@@ -30,6 +30,18 @@ class DashboardTests(unittest.TestCase):
         self.assertIn("Belum ada data sinyal V9", page)
         self.assertIn("Belum ada kandidat watchlist", page)
 
+    def test_mt5_quality_report_is_rendered_read_only(self):
+        page = build_dashboard({
+            "mt5_quality": {"results": [
+                {"symbol": "XAUUSD", "status": "BLOCKED",
+                 "findings": [{"code": "SPREAD_TOO_WIDE"}]}
+            ]}
+        })
+        self.assertIn("Kualitas Data Pasar MT5", page)
+        self.assertIn("XAUUSD", page)
+        self.assertIn("SPREAD_TOO_WIDE", page)
+        self.assertIn("Orders disabled", page)
+
     def test_escapes_untrusted_report_text(self):
         page = build_dashboard({
             "v9": {"results": [{"symbol": "<script>alert(1)</script>",
