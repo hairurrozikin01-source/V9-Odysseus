@@ -113,7 +113,8 @@ void OnStart()
    FileWriteString(handle, "\",\"snapshots\":[");
 
    bool first_symbol = true;
-   // Scan every symbol offered by this broker, not only symbols already visible in Market Watch.\n   int total = SymbolsTotal(false);
+   // Scan every symbol offered by this broker, not only symbols already visible in Market Watch.
+   int total = SymbolsTotal(false);
    int exported = 0;
 
    for(int index = 0; index < total; index++)
