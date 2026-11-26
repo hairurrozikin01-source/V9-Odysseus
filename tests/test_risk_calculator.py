@@ -59,6 +59,7 @@ class RiskCalculatorTests(unittest.TestCase):
                 stop_loss_price=2001,
                 equity=1000,
                 risk_pct=1,
+                account_currency="USD",
             )
 
     def test_below_minimum_volume_blocks(self):
@@ -82,6 +83,7 @@ class RiskCalculatorTests(unittest.TestCase):
             stop_loss_price=1999,
             equity=100000,
             risk_pct=1,
+                account_currency="USD",
         )
         self.assertEqual(result["status"], "CAPPED_AT_BROKER_MAX")
         self.assertEqual(result["volume_lots"], 0.05)
@@ -94,6 +96,7 @@ class RiskCalculatorTests(unittest.TestCase):
             stop_loss_price=1999,
             equity=1000,
             risk_pct=1,
+                account_currency="USD",
         )
         charged = calculate_position_risk(
             symbol_metadata=metadata(),
@@ -102,6 +105,7 @@ class RiskCalculatorTests(unittest.TestCase):
             stop_loss_price=1999,
             equity=1000,
             risk_pct=1,
+                account_currency="USD",
             commission_per_lot_round_turn=2.0,
             slippage_ticks_per_lot=3.0,
         )
@@ -118,6 +122,7 @@ class RiskCalculatorTests(unittest.TestCase):
                 stop_loss_price=1999,
                 equity=1000,
                 risk_pct=1,
+                account_currency="USD",
             )
 
     def test_wrong_metadata_source_rejected(self):
@@ -129,6 +134,7 @@ class RiskCalculatorTests(unittest.TestCase):
                 stop_loss_price=1999,
                 equity=1000,
                 risk_pct=1,
+                account_currency="USD",
             )
 
     def test_risk_percentage_over_100_rejected(self):
@@ -140,6 +146,7 @@ class RiskCalculatorTests(unittest.TestCase):
                 stop_loss_price=1999,
                 equity=1000,
                 risk_pct=101,
+                account_currency="USD",
             )
 
     def test_tick_value_currency_must_match_account(self):
@@ -162,6 +169,7 @@ class RiskCalculatorTests(unittest.TestCase):
             stop_loss_price=2001,
             equity=1000,
             risk_pct=1,
+                account_currency="USD",
         )
         self.assertEqual(result["mode"], "READ ONLY")
         self.assertFalse(result["orders_enabled"])
