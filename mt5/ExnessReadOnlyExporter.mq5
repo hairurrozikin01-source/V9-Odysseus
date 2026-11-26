@@ -54,6 +54,16 @@ string Number(double value, int digits)
    return DoubleToString(value, digits);
 }
 
+string JsonEscape(string value)
+{
+   StringReplace(value, "\\", "\\\\");
+   StringReplace(value, "\"", "\\\"");
+   StringReplace(value, "\r", "\\r");
+   StringReplace(value, "\n", "\\n");
+   StringReplace(value, "\t", "\\t");
+   return value;
+}
+
 void OnStart()
 {
    string server = AccountInfoString(ACCOUNT_SERVER);
@@ -88,22 +98,22 @@ void OnStart()
 
    FileWriteString(handle, "{\"broker\":\"Exness\",");
    FileWriteString(handle, "\"account_type\":\"Raw Spread\",");
-   FileWriteString(handle, "\"account_currency\":\"" + AccountInfoString(ACCOUNT_CURRENCY) + "\",");
+   FileWriteString(handle, "\"account_currency\":\"" + JsonEscape(AccountInfoString(ACCOUNT_CURRENCY)) + "\",");
    FileWriteString(handle, "\"platform\":\"MT5\",");
    FileWriteString(handle, "\"mode\":\"READ ONLY\",");
    FileWriteString(handle, "\"server\":\"");
-   FileWriteString(handle, server);
+   FileWriteString(handle, JsonEscape(server));
    FileWriteString(handle, "\",\"exported_at_utc\":\"");
    FileWriteString(handle, IsoUtc(TimeGMT()));
    FileWriteString(handle, "\",\"snapshots\":[");
 
    bool first_symbol = true;
-   int total = SymbolsTotal(true);
+   // Scan every symbol offered by this broker, not only symbols already visible in Market Watch.\n   int total = SymbolsTotal(false);
    int exported = 0;
 
    for(int index = 0; index < total; index++)
    {
-      string symbol = SymbolName(index, true);
+      string symbol = SymbolName(index, false);
       string market_type, base_currency, quote_currency;
 
       if(!IsEligibleSymbol(symbol, market_type, base_currency, quote_currency))
@@ -144,17 +154,17 @@ void OnStart()
       first_symbol = false;
 
       FileWriteString(handle, "{\"symbol\":\"");
-      FileWriteString(handle, symbol);
+      FileWriteString(handle, JsonEscape(symbol));
       FileWriteString(handle, "\",\"symbol_metadata\":{");
-      FileWriteString(handle, "\"symbol\":\"" + symbol + "\",");
+      FileWriteString(handle, "\"symbol\":\"" + JsonEscape(symbol) + "\",");
       FileWriteString(handle, "\"market_type\":\"" + market_type + "\",");
-      FileWriteString(handle, "\"base_currency\":\"" + base_currency + "\",");
-      FileWriteString(handle, "\"quote_currency\":\"" + quote_currency + "\",");
+      FileWriteString(handle, "\"base_currency\":\"" + JsonEscape(base_currency) + "\",");
+      FileWriteString(handle, "\"quote_currency\":\"" + JsonEscape(quote_currency) + "\",");
       FileWriteString(handle, "\"digits\":" + IntegerToString((int)digits) + ",");
       FileWriteString(handle, "\"point\":" + Number(point, 10) + ",");
       FileWriteString(handle, "\"tick_size\":" + Number(tick_size, 10) + ",");
       FileWriteString(handle, "\"tick_value\":" + Number(tick_value, 8) + ",");
-      FileWriteString(handle, "\"tick_value_currency\":\"" + AccountInfoString(ACCOUNT_CURRENCY) + "\",");
+      FileWriteString(handle, "\"tick_value_currency\":\"" + JsonEscape(AccountInfoString(ACCOUNT_CURRENCY)) + "\",");
       FileWriteString(handle, "\"contract_size\":" + Number(contract_size, 4) + ",");
       FileWriteString(handle, "\"volume_min\":" + Number(volume_min, 4) + ",");
       FileWriteString(handle, "\"volume_max\":" + Number(volume_max, 4) + ",");
