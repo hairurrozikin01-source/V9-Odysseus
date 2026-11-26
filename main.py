@@ -8,8 +8,8 @@ import urllib.error
 from datetime import datetime, timezone
 
 # =========================================================
-# V9 ODYSSEUS V4.5.3
-# SIGNAL VALIDATION & PERFORMANCE INTELLIGENCE
+# V9 ODYSSEUS V9.4.6 | ENGINE BASE V4.5.3
+# PERSISTENT SIGNAL VALIDATION & PERFORMANCE INTELLIGENCE
 # READ ONLY - NO AUTOMATIC TRADING
 # CAPITAL PROTECTION FIRST
 # =========================================================
