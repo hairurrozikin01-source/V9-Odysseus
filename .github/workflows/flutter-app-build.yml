@@ -34,10 +34,20 @@ jobs:
         run: |
           test -n "$SUPABASE_URL" || (echo "Missing SUPABASE_URL repository secret" && exit 1)
           test -n "$SUPABASE_PUBLISHABLE_KEY" || (echo "Missing SUPABASE_PUBLISHABLE_KEY repository secret" && exit 1)
-          case "$SUPABASE_URL" in
-            https://*) ;;
-            *) echo "SUPABASE_URL must use HTTPS" && exit 1 ;;
-          esac
+          python - <<'PY'
+          import os
+          from urllib.parse import urlsplit
+
+          raw = os.environ["SUPABASE_URL"].strip()
+          parsed = urlsplit(raw)
+          if parsed.scheme != "https" or not parsed.hostname:
+              raise SystemExit("SUPABASE_URL must be a valid HTTPS project URL")
+          if not parsed.hostname.endswith(".supabase.co"):
+              raise SystemExit("SUPABASE_URL host must be the project's <ref>.supabase.co domain")
+          if parsed.path not in ("", "/") or parsed.query or parsed.fragment or parsed.username or parsed.password:
+              raise SystemExit("SUPABASE_URL must contain only the project origin, without /auth/v1, other paths, query, or fragment")
+          print("Supabase URL shape: valid project origin; host:", parsed.hostname)
+          PY
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
