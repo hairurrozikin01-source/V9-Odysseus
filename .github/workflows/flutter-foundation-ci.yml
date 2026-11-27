@@ -1,0 +1,41 @@
+name: Flutter Foundation CI
+
+on:
+  push:
+    branches:
+      - v9.8-flutter-supabase-foundation
+  pull_request:
+    branches:
+      - v9.7.1-approval-inbox-foundation
+      - v9.8-flutter-supabase-foundation
+    paths:
+      - "mobile/**"
+      - ".github/workflows/flutter-foundation-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --fatal-infos
+
+      - name: Widget tests
+        run: flutter test
