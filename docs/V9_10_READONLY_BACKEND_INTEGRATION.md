@@ -47,3 +47,7 @@ share the ingest key in screenshots or chat.
 Run tests and CI on the development branch, configure secrets, then confirm a
 successful scheduled/manual V9 run and verify the resulting rows in Supabase.
 Only after that should the Flutter app be rebuilt to show live records.
+
+
+## Credential setup status
+The repository and Edge Function secrets are configured by the project owner. A new workflow run is required to exercise the authenticated publisher; verify the run result and database rows before enabling any consumer UI changes.
