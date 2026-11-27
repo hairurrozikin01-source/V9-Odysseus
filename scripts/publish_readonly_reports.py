@@ -9,6 +9,18 @@ V9_REPORT = "v9_scan_results.json"
 RISK_REPORT = "v9_risk_monitor_report.json"
 
 
+def build_payload(v9_report, risk_report):
+    """Validate the report boundary and return a UTF-8 JSON payload."""
+    if not isinstance(v9_report, dict) or not isinstance(risk_report, dict):
+        raise ValueError("Both reports must be JSON objects.")
+    if v9_report.get("mode") != "READ ONLY" or risk_report.get("mode") != "READ ONLY":
+        raise RuntimeError("Refusing to publish reports not explicitly marked READ ONLY.")
+    return json.dumps({
+        "v9_report": v9_report,
+        "risk_report": risk_report,
+    }).encode("utf-8")
+
+
 def main():
     endpoint = os.environ.get("V9_INGEST_URL", "").strip()
     secret = os.environ.get("V9_INGEST_KEY", "").strip()
@@ -21,13 +33,7 @@ def main():
     with open(RISK_REPORT, "r", encoding="utf-8") as handle:
         risk_report = json.load(handle)
 
-    if v9_report.get("mode") != "READ ONLY" or risk_report.get("mode") != "READ ONLY":
-        raise RuntimeError("Refusing to publish reports not explicitly marked READ ONLY.")
-
-    payload = json.dumps({
-        "v9_report": v9_report,
-        "risk_report": risk_report,
-    }).encode("utf-8")
+    payload = build_payload(v9_report, risk_report)
     request = urllib.request.Request(
         endpoint,
         data=payload,
