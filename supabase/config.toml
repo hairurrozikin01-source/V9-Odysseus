@@ -15,3 +15,6 @@ schema_paths = []
 
 [db.seed]
 enabled = false
+
+[functions.v9-readonly-ingest]
+verify_jwt = false
