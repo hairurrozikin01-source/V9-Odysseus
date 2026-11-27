@@ -1,3 +1,4 @@
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:v9_odysseus_app/main.dart';
 
@@ -8,5 +9,26 @@ void main() {
 
     expect(find.text('Konfigurasi diperlukan'), findsOneWidget);
     expect(find.text('V9 ODYSSEUS'), findsOneWidget);
+  });
+
+  testWidgets('market intelligence shows an honest empty state', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: MarketEmptyState())),
+    );
+
+    expect(find.text('Belum ada sinyal pasar'), findsOneWidget);
+    expect(
+      find.textContaining('belum menerima atau menghasilkan data market'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('risk monitoring shows an honest empty state', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: RiskEmptyState())),
+    );
+
+    expect(find.text('Belum ada penilaian risiko'), findsOneWidget);
+    expect(find.textContaining('Tidak ada risiko transaksi'), findsOneWidget);
   });
 }

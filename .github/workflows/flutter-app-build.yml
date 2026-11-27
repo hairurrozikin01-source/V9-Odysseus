@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - v9.8-flutter-supabase-foundation
+      - v9.9-market-intelligence-risk-monitoring
     paths:
       - "mobile/**"
       - ".github/workflows/flutter-app-build.yml"
@@ -68,6 +69,7 @@ jobs:
         run: flutter test
 
       - name: Build Android debug APK
+        timeout-minutes: 15
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
@@ -77,6 +79,7 @@ jobs:
             --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
 
       - name: Build Web release
+        timeout-minutes: 10
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}

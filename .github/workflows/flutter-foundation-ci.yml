@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - v9.8-flutter-supabase-foundation
+      - v9.9-market-intelligence-risk-monitoring
   pull_request:
     branches:
       - v9.7.1-approval-inbox-foundation
