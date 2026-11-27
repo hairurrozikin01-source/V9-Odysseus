@@ -32,6 +32,17 @@ async function supabaseRequest(path: string, method = "GET", body?: unknown) {
   return text ? JSON.parse(text) : null;
 }
 
+function constantTimeEqual(left: string, right: string): boolean {
+  const a = new TextEncoder().encode(left);
+  const b = new TextEncoder().encode(right);
+  let difference = a.length ^ b.length;
+  const length = Math.max(a.length, b.length);
+  for (let i = 0; i < length; i++) {
+    difference |= (a[i] ?? 0) ^ (b[i] ?? 0);
+  }
+  return difference === 0;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return response(405, { error: "Method not allowed." });
 
@@ -39,11 +50,7 @@ Deno.serve(async (req: Request) => {
   if (!ingestKey) return response(503, { error: "Ingestion is not configured yet." });
 
   const suppliedKey = req.headers.get("x-v9-ingest-key") ?? "";
-  if (suppliedKey.length !== ingestKey.length ||
-      !crypto.subtle.timingSafeEqual(
-        new TextEncoder().encode(suppliedKey),
-        new TextEncoder().encode(ingestKey),
-      )) {
+  if (!constantTimeEqual(suppliedKey, ingestKey)) {
     return response(401, { error: "Unauthorized." });
   }
 
