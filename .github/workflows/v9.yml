@@ -10,6 +10,7 @@ on:
       - v9.5.2-risk-monitor
       - v9.6-multi-market-foundation
       - v9.7-secure-transaction-platform
+      - v9.7.1-approval-inbox-foundation
   schedule:
     - cron: "*/15 * * * *"
 
