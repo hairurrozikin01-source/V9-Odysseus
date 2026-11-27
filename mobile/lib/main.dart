@@ -128,9 +128,16 @@ class _SignInPageState extends State<SignInPage> {
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
-    } on AuthException {
+    } on AuthException catch (e) {
+      // Supabase AuthException messages contain server diagnostics, not credentials.
+      // Show a bounded message so the user can distinguish invalid credentials,
+      // unconfirmed email, and service/configuration errors without exposing secrets.
+      final detail = e.message.trim();
+      final status = e.statusCode;
       setState(() {
-        _error = 'Login gagal. Periksa email dan kata sandi, lalu coba lagi.';
+        _error = status == null
+            ? 'Login gagal: $detail'
+            : 'Login gagal (HTTP $status): $detail';
       });
     } catch (_) {
       setState(() {
