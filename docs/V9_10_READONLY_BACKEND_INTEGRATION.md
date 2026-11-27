@@ -14,7 +14,7 @@ assessment for provisioned owner accounts.
 The `risk_assessments` rows are operational data-quality assessments. They are
 not portfolio-risk calculations or trading permissions.
 
-## Required secrets (manual setup)
+## Required secrets and deployment (manual owner action)
 
 1. In Supabase Dashboard for project `kiwyczhesgrrjwgbvzwk`, open
    **Edge Functions → Secrets** and add `V9_INGEST_KEY` with a newly generated,
@@ -27,12 +27,14 @@ not portfolio-risk calculations or trading permissions.
    `SUPABASE_SERVICE_ROLE_KEY` to the runtime. The service-role key must never
    be added to GitHub, Flutter, or this repository.
 4. Deploy the function from the Supabase project using the reviewed source at
-   `supabase/functions/v9-readonly-ingest/index.ts`. JWT gateway verification is
-   disabled only because this is a server-to-server endpoint; the function itself
-   requires the private `x-v9-ingest-key` header and fails closed if absent.
+   `supabase/functions/v9-readonly-ingest/index.ts`. JWT gateway verification
+   is disabled only because this is a server-to-server endpoint; the function
+   itself requires the private `x-v9-ingest-key` header and fails closed if absent.
 
-Until both secrets are configured, the GitHub publish step safely skips. Never
-share the ingest key in screenshots or chat.
+Until both GitHub Actions secrets and the Supabase function secret are configured,
+the publisher safely skips or the endpoint rejects the request. The actual secret
+configuration status has not been independently verified by this repository change.
+Never share the ingest key in screenshots or chat.
 
 ## Data mapping
 
@@ -44,10 +46,10 @@ share the ingest key in screenshots or chat.
 
 ## Release gates
 
-Run tests and CI on the development branch, configure secrets, then confirm a
-successful scheduled/manual V9 run and verify the resulting rows in Supabase.
-Only after that should the Flutter app be rebuilt to show live records.
+Run tests and CI on the development branch, configure secrets through the owner
+account, deploy the Edge Function, then confirm a successful scheduled/manual V9
+run and verify the resulting rows in Supabase. Only after that should the Flutter
+app be rebuilt to show live records.
 
-
-## Credential setup status
-The repository and Edge Function secrets are configured by the project owner. A new workflow run is required to exercise the authenticated publisher; verify the run result and database rows before enabling any consumer UI changes.
+Passing unit tests alone does not verify deployment, credentials, database writes,
+or end-to-end ingestion.
