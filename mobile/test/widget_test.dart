@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:v9_odysseus_app/main.dart';
 
@@ -11,7 +12,7 @@ void main() {
   });
 
   testWidgets('market intelligence shows an honest empty state', (tester) async {
-    await tester.pumpWidget(const MaterialAppForTest(child: MarketEmptyState()));
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: MarketEmptyState())));
 
     expect(find.text('Belum ada sinyal pasar'), findsOneWidget);
     expect(find.textContaining('belum menerima atau menghasilkan data market'),
@@ -19,17 +20,9 @@ void main() {
   });
 
   testWidgets('risk monitoring shows an honest empty state', (tester) async {
-    await tester.pumpWidget(const MaterialAppForTest(child: RiskEmptyState()));
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: RiskEmptyState())));
 
     expect(find.text('Belum ada penilaian risiko'), findsOneWidget);
     expect(find.textContaining('Tidak ada risiko transaksi'), findsOneWidget);
   });
-}
-
-class MaterialAppForTest extends StatelessWidget {
-  const MaterialAppForTest({required this.child, super.key});
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => MaterialApp(home: Scaffold(body: child));
 }
