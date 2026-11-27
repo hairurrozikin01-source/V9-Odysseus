@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1020">
+<title>V9 Odysseus — Transaction Control Center</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--panel:#121b2e;--panel2:#17243a;--line:#293751;--text:#edf3ff;--muted:#9eacc4;--cyan:#69d9e3;--green:#83dfb0;--amber:#ffd27b;--red:#ff9696}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#14223a 0,#0b1020 55%);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+button{font:inherit;cursor:pointer}button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+.shell{max-width:1120px;margin:auto;padding:22px 16px 48px}.top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px}.mark{width:42px;height:42px;border-radius:13px;background:linear-gradient(145deg,#2b5368,#24304b);display:grid;place-items:center;font-weight:800;color:#c9fbff}
+h1{font-size:20px;letter-spacing:.04em;margin:0}.sub,.muted{color:var(--muted);font-size:13px}.pill{border:1px solid var(--line);border-radius:99px;padding:5px 10px;font-size:12px;color:var(--green)}
+nav{display:flex;gap:7px;overflow:auto;margin:22px 0 16px;padding-bottom:4px}nav a{white-space:nowrap;color:var(--muted);text-decoration:none;border:1px solid var(--line);padding:8px 12px;border-radius:10px;font-size:13px}nav a:first-child{color:var(--text);background:var(--panel2)}
+h2{font-size:17px;margin:0 0 5px}.section-sub{color:var(--muted);font-size:13px;margin:0 0 16px}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}.two{display:grid;grid-template-columns:1.25fr .75fr;gap:12px;margin-top:12px}
+.card{background:linear-gradient(160deg,#17243a,#111a2b);border:1px solid var(--line);border-radius:16px;padding:16px;min-width:0}.metric{font-size:23px;font-weight:750;margin-top:5px}.label{color:var(--muted);font-size:12px}
+.status{display:inline-flex;align-items:center;gap:6px;border-radius:99px;padding:4px 9px;font-size:11px;border:1px solid var(--line)}.dot{width:7px;height:7px;border-radius:50%;background:var(--amber)}
+.mode{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px;border:1px solid var(--line);border-radius:12px;margin-top:10px;background:#101a2b}
+.mode.active{border-color:#3e897e;background:#12272b}.mode h3{font-size:14px;margin:0 0 3px}.mode p{font-size:12px;color:var(--muted);margin:0}
+button.primary,button.secondary,button.danger,button.locked{border:0;border-radius:10px;padding:10px 13px;font-size:13px;font-weight:650}
+.primary{background:#226d68;color:#eafffa}.secondary{background:#263750;color:var(--text)}.danger{background:#512c38;color:#ffe4e4}.locked{background:#283143;color:#aab5c8;cursor:not-allowed}
+.proposal{border:1px solid #3a526c;background:linear-gradient(150deg,#1a2b42,#121c2d);border-radius:14px;padding:15px;margin-top:10px}
+.proposal-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}.symbol{font-size:19px;font-weight:750}.buy{color:var(--green)}.sell{color:var(--red)}
+.details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:14px 0}.detail{background:#0e1727;border:1px solid #24334b;border-radius:10px;padding:10px}.detail b{display:block;font-size:14px;margin-top:3px}
+.note{border-left:3px solid var(--amber);background:#282316;padding:10px 12px;border-radius:7px;color:#e9d8ae;font-size:12px;margin:12px 0}
+.actions{display:flex;gap:8px;flex-wrap:wrap}.history{list-style:none;padding:0;margin:10px 0 0}.history li{padding:11px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;font-size:13px}.history small{display:block;color:var(--muted);font-size:11px}
+.guard{display:flex;gap:9px;align-items:flex-start;padding:12px;border-radius:11px;background:#102a25;border:1px solid #275448;color:#c8f0df;font-size:12px;margin-top:12px}
+footer{color:var(--muted);font-size:11px;margin-top:18px;text-align:center}.toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,20px);opacity:0;pointer-events:none;background:#263750;border:1px solid #48617d;color:#fff;padding:11px 15px;border-radius:11px;max-width:calc(100% - 30px);transition:.2s;z-index:5}.toast.show{opacity:1;transform:translate(-50%,0)}
+@media(max-width:760px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.two{grid-template-columns:1fr}.details{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:420px){.shell{padding:16px 12px 35px}.card{padding:13px}.metric{font-size:20px}}
+</style>
+</head>
+<body>
+<div class="shell">
+<header class="top">
+ <div class="brand"><div class="mark">V9</div><div><h1>V9 ODYSSEUS</h1><div class="sub">Transaction Control Center · Prototype UI</div></div></div>
+ <span class="pill">● SIMULASI — READ ONLY</span>
+</header>
+<nav aria-label="Navigasi utama"><a href="#overview">Ringkasan</a><a href="#modes">Mode kendali</a><a href="#approval">Approval Inbox</a><a href="#history">Riwayat</a><a href="#safety">Keamanan</a></nav>
+<section id="overview">
+ <h2>Ringkasan sistem</h2><p class="section-sub">Pemantauan terpusat Gold dan Forex · Exness MT5 Raw Spread (target integrasi)</p>
+ <div class="grid">
+  <div class="card"><div class="label">MESIN V9</div><div class="metric">READ ONLY</div><div class="sub">Belum terhubung ke MT5</div></div>
+  <div class="card"><div class="label">ODYSSEUS AI</div><div class="metric">AUDIT</div><div class="sub">Mode pengawasan</div></div>
+  <div class="card"><div class="label">MODE TRANSAKSI</div><div class="metric" id="modeMetric">MANUAL</div><div class="sub">Mode awal yang dipilih</div></div>
+  <div class="card"><div class="label">APPROVAL MENUNGGU</div><div class="metric" id="pendingMetric">1</div><div class="sub">Contoh proposal simulasi</div></div>
+ </div>
+</section>
+<div class="two">
+ <section class="card" id="modes">
+  <h2>Mode kendali transaksi</h2><p class="section-sub">Mode Manual aktif sebagai standar. Mode Otomatis masih dikunci.</p>
+  <div class="mode active"><div><h3>01 · Manual Approval</h3><p>Setiap proposal perlu persetujuan manusia sebelum eksekusi.</p></div><span class="status" style="color:var(--green)">AKTIF</span></div>
+  <div class="mode"><div><h3>02 · Automatic Execution</h3><p>Hanya dibuka setelah semua gerbang keselamatan dan demo test lulus.</p></div><button class="locked" id="autoBtn" type="button">Terkunci</button></div>
+  <div class="guard"><span>✓</span><span>Persetujuan tidak dapat melewati pemeriksaan risiko. Perubahan harga, ukuran, atau parameter proposal akan membatalkan persetujuan lama.</span></div>
+ </section>
+ <section class="card" id="safety">
+  <h2>Safety Center</h2><p class="section-sub">Status pengaman pada rancangan ini</p>
+  <ul class="history">
+   <li><span>Order broker</span><b class="buy">NONAKTIF</b></li>
+   <li><span>Odysseus</span><b>READ ONLY</b></li>
+   <li><span>Risk gate</span><b>WAJIB</b></li>
+   <li><span>Emergency stop</span><b class="buy">SIAP DIRANCANG</b></li>
+   <li><span>Audit log</span><b>AKTIF DI SIMULASI</b></li>
+  </ul>
+ </section>
+</div>
+<section class="card" id="approval" style="margin-top:12px">
+ <h2>Approval Inbox</h2><p class="section-sub">Contoh proposal untuk memperlihatkan alur persetujuan. Bukan sinyal pasar nyata.</p>
+ <div class="proposal" id="proposal">
+  <div class="proposal-head"><div><div class="symbol">XAUUSD <span class="buy">· BUY WATCH</span></div><div class="sub">Proposal contoh · Timeframe M15 · Belum terhubung broker</div></div><span class="status"><span class="dot"></span> MENUNGGU REVIEW</span></div>
+  <div class="details">
+   <div class="detail"><span class="label">Harga referensi</span><b>—</b></div>
+   <div class="detail"><span class="label">Ukuran posisi</span><b>Belum dihitung</b></div>
+   <div class="detail"><span class="label">Risiko akun</span><b>Belum tersedia</b></div>
+   <div class="detail"><span class="label">Spread</span><b>Belum tersedia</b></div>
+   <div class="detail"><span class="label">Audit AI</span><b>Perlu data live</b></div>
+   <div class="detail"><span class="label">Masa berlaku</span><b>Simulasi</b></div>
+  </div>
+  <div class="note">Proposal ini sengaja tidak dapat dieksekusi: harga, spesifikasi broker, saldo akun, ukuran posisi, dan hasil risk gate belum tersedia.</div>
+  <div class="actions"><button class="primary" id="approveBtn" type="button">Simulasikan persetujuan</button><button class="danger" id="rejectBtn" type="button">Tolak proposal</button></div>
+ </div>
+ <p class="sub" id="proposalState" aria-live="polite" style="margin-top:10px">Status: menunggu tindakan simulasi.</p>
+</section>
+<section class="card" id="history" style="margin-top:12px">
+ <h2>Riwayat aktivitas</h2><p class="section-sub">Catatan lokal selama halaman prototype ini dibuka.</p>
+ <ul class="history" id="historyList"><li><span>Prototype dibuka<small>Transaction Control Center</small></span><b>READ ONLY</b></li></ul>
+</section>
+<footer>V9 Odysseus · Rancangan antarmuka · Tidak mengirim order, tidak tersambung ke akun Exness, dan tidak menyimpan kredensial.</footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+(function(){
+ const toast=document.getElementById('toast'),list=document.getElementById('historyList');
+ let proposalStatus='PENDING';
+ function notify(message){toast.textContent=message;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),2600);}
+ function log(title,status){const li=document.createElement('li'),left=document.createElement('span'),small=document.createElement('small'),right=document.createElement('b');left.textContent=title;small.textContent=new Date().toLocaleString('id-ID');left.appendChild(small);right.textContent=status;li.append(left,right);list.prepend(li);}
+ document.getElementById('autoBtn').addEventListener('click',()=>notify('Mode otomatis masih terkunci sampai seluruh gerbang keselamatan lulus.'));
+ function decide(next){
+  if(proposalStatus!=='PENDING'){notify('Proposal simulasi ini sudah memiliki keputusan.');return;}
+  proposalStatus=next;
+  const card=document.getElementById('proposal');
+  card.querySelector('.status').textContent=next==='APPROVED'?'DISETUJUI — SIMULASI':'DITOLAK — SIMULASI';
+  document.getElementById('proposalState').textContent='Status simulasi: '+(next==='APPROVED'?'disetujui oleh pengguna':'ditolak oleh pengguna')+'. Tidak ada order yang dikirim.';
+  document.getElementById('pendingMetric').textContent='0';
+  document.getElementById('approveBtn').disabled=true;document.getElementById('rejectBtn').disabled=true;
+  document.getElementById('approveBtn').className='locked';document.getElementById('rejectBtn').className='locked';
+  log('Proposal XAUUSD '+(next==='APPROVED'?'disetujui (simulasi)':'ditolak (simulasi)'),next);
+  notify('Keputusan simulasi dicatat. Tidak ada transaksi nyata.');
+ }
+ document.getElementById('approveBtn').addEventListener('click',()=>decide('APPROVED'));
+ document.getElementById('rejectBtn').addEventListener('click',()=>decide('REJECTED'));
+})();
+</script>
+</body></html>

@@ -8,6 +8,8 @@ on:
       - v9.5-odysseus-development
       - v9.5.1-risk-validation
       - v9.5.2-risk-monitor
+      - v9.6-multi-market-foundation
+      - v9.7-secure-transaction-platform
   schedule:
     - cron: "*/15 * * * *"
 
@@ -37,7 +39,7 @@ jobs:
           restore-keys: |
             v9-state-${{ runner.os }}-
 
-      - name: Test V9, SHIB Hunter, Odysseus, and Risk Monitor
+      - name: Test V9, SHIB Hunter, Odysseus, Risk Monitor, and MT5 Read-Only Adapter
         run: python -m unittest discover -s tests -v
 
       - name: Run V9
@@ -53,13 +55,19 @@ jobs:
       - name: Run V9 read-only risk monitor
         run: python risk_monitor.py
 
+      - name: Build MT5 data-quality report (READ ONLY)
+        run: python mt5_quality_report.py
+
+      - name: Build mobile dashboard
+        run: python dashboard.py
+
       - name: Save persistent signal history
         uses: actions/cache/save@v4
         with:
           path: .v9-state/
           key: v9-state-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
 
-      - name: Upload V9, SHIB Hunter, Odysseus, and risk reports
+      - name: Upload V9, SHIB Hunter, Odysseus, risk reports, and mobile dashboard
         uses: actions/upload-artifact@v4
         with:
           name: v9-odysseus-reports-${{ github.run_id }}
@@ -68,5 +76,7 @@ jobs:
             shib_hunter_results.json
             odysseus_audit_report.json
             v9_risk_monitor_report.json
+            mt5_data_quality_report.json
+            v9_dashboard.html
           if-no-files-found: warn
           retention-days: 7
