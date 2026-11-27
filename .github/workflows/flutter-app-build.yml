@@ -1,0 +1,102 @@
+name: Flutter App Build
+
+on:
+  push:
+    branches:
+      - v9.8-flutter-supabase-foundation
+    paths:
+      - "mobile/**"
+      - ".github/workflows/flutter-app-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flutter-app-build-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required configuration
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          test -n "$SUPABASE_URL" || (echo "Missing SUPABASE_URL repository secret" && exit 1)
+          test -n "$SUPABASE_PUBLISHABLE_KEY" || (echo "Missing SUPABASE_PUBLISHABLE_KEY repository secret" && exit 1)
+          python - <<'PY'
+          import os
+          from urllib.parse import urlsplit
+
+          raw = os.environ["SUPABASE_URL"].strip()
+          parsed = urlsplit(raw)
+          if parsed.scheme != "https" or not parsed.hostname:
+              raise SystemExit("SUPABASE_URL must be a valid HTTPS project URL")
+          if not parsed.hostname.endswith(".supabase.co"):
+              raise SystemExit("SUPABASE_URL host must be the project's <ref>.supabase.co domain")
+          if parsed.path not in ("", "/") or parsed.query or parsed.fragment or parsed.username or parsed.password:
+              raise SystemExit("SUPABASE_URL must contain only the project origin, without /auth/v1, other paths, query, or fragment")
+          print("Supabase URL shape: valid project origin; host:", parsed.hostname)
+          PY
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Android and Web platform scaffolding
+        run: flutter create --platforms=android,web --project-name v9_odysseus_app .
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --fatal-infos
+
+      - name: Widget tests
+        run: flutter test
+
+      - name: Build Android debug APK
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          flutter build apk --debug \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
+
+      - name: Build Web release
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          flutter build web --release \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: v9-odysseus-android-debug
+          path: mobile/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload Web build
+        uses: actions/upload-artifact@v4
+        with:
+          name: v9-odysseus-web
+          path: mobile/build/web/
+          if-no-files-found: error
+          retention-days: 7
