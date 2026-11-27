@@ -55,13 +55,43 @@ Deno.serve(async (req: Request) => {
   }
 
   const contentLength = Number(req.headers.get("content-length") ?? "0");
-  if (contentLength > 1_000_000) return response(413, { error: "Payload too large." });
+  if (Number.isFinite(contentLength) && contentLength > 1_000_000) {
+    return response(413, { error: "Payload too large." });
+  }
 
+  // Enforce the payload limit while streaming; Content-Length can be absent.
   let payload: Record<string, unknown>;
   try {
-    payload = await req.json();
+    if (!req.body) throw new Error("Missing request body.");
+    const reader = req.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > 1_000_000) {
+        await reader.cancel();
+        return response(413, { error: "Payload too large." });
+      }
+      chunks.push(value);
+    }
+
+    const bytes = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+
+    const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("JSON payload must be an object.");
+    }
+    payload = parsed as Record<string, unknown>;
   } catch {
-    return response(400, { error: "Invalid JSON." });
+    return response(400, { error: "Invalid JSON object." });
   }
 
   const v9 = payload.v9_report as Record<string, unknown> | undefined;
