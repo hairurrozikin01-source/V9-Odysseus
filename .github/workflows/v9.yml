@@ -9,6 +9,7 @@ on:
       - v9.5.1-risk-validation
       - v9.5.2-risk-monitor
       - v9.6-multi-market-foundation
+      - v9.7-secure-transaction-platform
   schedule:
     - cron: "*/15 * * * *"
 
