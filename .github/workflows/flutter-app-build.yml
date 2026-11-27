@@ -44,6 +44,9 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Generate Android and Web platform scaffolding
+        run: flutter create --platforms=android,web --project-name v9_odysseus_app .
+
       - name: Install dependencies
         run: flutter pub get
 
