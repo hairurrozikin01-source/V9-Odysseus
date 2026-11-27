@@ -11,6 +11,7 @@ on:
       - v9.6-multi-market-foundation
       - v9.7-secure-transaction-platform
       - v9.7.1-approval-inbox-foundation
+      - v9.10-readonly-backend-integration
   schedule:
     - cron: "*/15 * * * *"
 
@@ -55,6 +56,12 @@ jobs:
 
       - name: Run V9 read-only risk monitor
         run: python risk_monitor.py
+
+      - name: Publish read-only reports to Supabase
+        env:
+          V9_INGEST_URL: ${{ secrets.V9_INGEST_URL }}
+          V9_INGEST_KEY: ${{ secrets.V9_INGEST_KEY }}
+        run: python scripts/publish_readonly_reports.py
 
       - name: Build MT5 data-quality report (READ ONLY)
         run: python mt5_quality_report.py
