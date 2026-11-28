@@ -31,7 +31,8 @@ MIN_VOLUME_RATIO = 1.5
 MIN_TRADE_RATIO = 1.3
 
 REQUEST_DELAY_SECONDS = 0.12
-MAX_SYMBOLS = 100  # Liquidity-ranked cap to keep scheduled scans within runtime limits
+MAX_SYMBOLS = 40  # Start with the 40 most liquid pairs to keep scheduled scans bounded
+SCAN_TIMEOUT_SECONDS = 9 * 60  # Leave time for downstream READ ONLY reports
 
 OUTPUT_FILE = "v9_scan_results.json"
 HISTORY_FILE = ".v9-state/v9_signal_history.json"
@@ -548,8 +549,20 @@ def run_v9():
 
     results = []
     failures = []
+    scan_started = time.monotonic()
+    scanned_count = 0
+    scan_timed_out = False
 
     for index, item in enumerate(universe, 1):
+        if time.monotonic() - scan_started >= SCAN_TIMEOUT_SECONDS:
+            scan_timed_out = True
+            print(
+                "Batas waktu pemindaian tercapai:",
+                SCAN_TIMEOUT_SECONDS,
+                "detik; menghentikan scan dengan aman."
+            )
+            break
+
         try:
             result = analyze_symbol(item)
 
@@ -562,7 +575,9 @@ def run_v9():
                 "error": str(exc)[:150],
             })
 
-        if index % 25 == 0 or index == len(universe):
+        scanned_count = index
+
+        if index % 10 == 0 or index == len(universe):
             print(
                 "Progres:", index, "/", len(universe),
                 "| hasil:", len(results),
@@ -570,6 +585,8 @@ def run_v9():
             )
 
         time.sleep(REQUEST_DELAY_SECONDS)
+
+    remaining_count = max(0, len(universe) - scanned_count)
 
     results.sort(
         key=lambda x: (
@@ -595,8 +612,12 @@ def run_v9():
             "minimum_average_15m_volume_usdt": MIN_AVG_QUOTE_VOLUME_15M,
         },
         "universe_count": len(universe),
+        "scanned_count": scanned_count,
         "analyzed_count": len(results),
         "failed_count": len(failures),
+        "remaining_count": remaining_count,
+        "scan_complete": not scan_timed_out and scanned_count == len(universe),
+        "scan_timeout_seconds": SCAN_TIMEOUT_SECONDS,
         "performance": performance,
         "results": results,
         "failures": failures,
