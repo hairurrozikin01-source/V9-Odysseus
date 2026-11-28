@@ -11,6 +11,7 @@ on:
       - v9.6-multi-market-foundation
       - v9.7-secure-transaction-platform
       - v9.7.1-approval-inbox-foundation
+      - v9.10-readonly-backend-integration
   schedule:
     - cron: "*/15 * * * *"
 
@@ -56,6 +57,15 @@ jobs:
       - name: Run V9 read-only risk monitor
         run: python risk_monitor.py
 
+      - name: Publish read-only reports to Supabase
+        env:
+          V9_INGEST_URL: ${{ secrets.V9_INGEST_URL }}
+          V9_INGEST_KEY: ${{ secrets.V9_INGEST_KEY }}
+        run: python scripts/publish_readonly_reports.py
+
+      - name: Run V9 one-million-IDR paper simulation (READ ONLY)
+        run: python paper_trading_simulator.py --capital 1000000 --allocation-pct 10 --fee-per-side-pct 0.1 --slippage-per-side-pct 0.05
+
       - name: Build MT5 data-quality report (READ ONLY)
         run: python mt5_quality_report.py
 
@@ -78,6 +88,7 @@ jobs:
             odysseus_audit_report.json
             v9_risk_monitor_report.json
             mt5_data_quality_report.json
+            paper_trading_report.json
             v9_dashboard.html
           if-no-files-found: warn
           retention-days: 7
